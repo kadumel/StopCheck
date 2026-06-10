@@ -1,0 +1,15 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Eliminar Comparação — StopCheck{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center">
+    <h2 class="text-lg font-semibold text-slate-800 mb-2">Eliminar comparação?</h2>
+    <p class="text-slate-500 mb-6">{{ object.driver.name }} — {{ object.date|date:"d/m/Y" }}</p>
+    <form method="post" class="flex gap-3 justify-center">
+        {% csrf_token %}
+        <button type="submit" class="px-6 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">Eliminar</button>
+        <a href="{% url 'comparison_list' %}" class="px-6 py-2.5 text-slate-600 rounded-lg hover:bg-slate-100 transition">Cancelar</a>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends 'stop_check/base.html' %}
+
+{% block auth_content %}
+<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-surface-900 via-surface-800 to-brand-900 p-4">
+    <div class="w-full max-w-md">
+        <div class="text-center mb-8">
+            <div class="inline-flex w-16 h-16 rounded-2xl bg-brand-500 items-center justify-center text-2xl font-bold text-white mb-4">S</div>
+            <h1 class="text-3xl font-bold text-white">StopCheck</h1>
+            <p class="text-slate-400 mt-2">Controlo de entregas e produtividade</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow-xl p-8">
+            <h2 class="text-xl font-semibold text-slate-800 mb-6">Iniciar sessão</h2>
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+                {% for field in form %}
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                    <p class="text-red-500 text-xs mt-1">{{ field.errors.0 }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                {% if form.non_field_errors %}
+                <div class="text-red-500 text-sm">{{ form.non_field_errors.0 }}</div>
+                {% endif %}
+                <button type="submit" class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg transition">
+                    Entrar
+                </button>
+            </form>
+            <p class="text-center text-sm text-slate-500 mt-6">
+                Não tem conta? <a href="{% url 'register' %}" class="text-brand-600 font-medium hover:underline">Registar empresa</a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}{{ title }} — StopCheck{% endblock %}
+
+{% block header %}<h2 class="text-lg font-semibold text-slate-800">{{ title }}</h2>{% endblock %}
+
+{% block content %}
+<div class="max-w-lg">
+    <form method="post" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+        {% csrf_token %}
+        {% for field in form %}
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">{{ field.label }}</label>
+            {{ field }}
+        </div>
+        {% endfor %}
+        <button type="submit" class="px-6 py-2.5 bg-brand-600 text-white rounded-lg">Guardar</button>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Empresas de Entrega — StopCheck{% endblock %}
+
+{% block header %}<h2 class="text-lg font-semibold text-slate-800">Empresas de Entrega</h2>{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'delivery_company_create' %}" class="inline-flex px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg">Nova Empresa</a>
+{% endblock %}
+
+{% block content %}
+<div class="grid gap-3">
+    {% for company in companies %}
+    <div class="bg-white rounded-xl border border-slate-200 p-4 flex justify-between items-center">
+        <div>
+            <h3 class="font-semibold">{{ company.name }}</h3>
+            <p class="text-sm text-slate-500">{{ company.contact_email|default:"—" }}</p>
+        </div>
+        <span class="text-xs px-2 py-1 rounded-full {% if company.is_active %}bg-emerald-100 text-emerald-700{% else %}bg-slate-100{% endif %}">
+            {% if company.is_active %}Ativa{% else %}Inativa{% endif %}
+        </span>
+    </div>
+    {% empty %}
+    <p class="text-slate-500 text-center py-8">Nenhuma empresa registada.</p>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,83 @@
+{% extends 'stop_check/mobile/base_mobile.html' %}
+
+{% block content %}
+<p class="text-slate-400 text-sm mb-4">{{ today|date:"l, d \d\e F \d\e Y" }}</p>
+
+<div class="grid grid-cols-3 gap-3 mb-6">
+    <div class="bg-slate-800 rounded-2xl p-4 text-center border border-slate-700">
+        <p class="text-3xl font-bold text-brand-400" id="count-stops">{{ comparison.driver_stops }}</p>
+        <p class="text-xs text-slate-400 mt-1">Paradas</p>
+    </div>
+    <div class="bg-slate-800 rounded-2xl p-4 text-center border border-slate-700">
+        <p class="text-3xl font-bold text-brand-400" id="count-pudo">{{ comparison.driver_pudo }}</p>
+        <p class="text-xs text-slate-400 mt-1">PUDO</p>
+    </div>
+    <div class="bg-slate-800 rounded-2xl p-4 text-center border border-slate-700">
+        <p class="text-3xl font-bold text-brand-400" id="count-pickups">{{ comparison.driver_pickups }}</p>
+        <p class="text-xs text-slate-400 mt-1">Recolhas</p>
+    </div>
+</div>
+
+<div class="space-y-3 mb-8">
+    <button type="button" data-type="stop" class="tap-btn w-full py-6 rounded-2xl bg-brand-600 hover:bg-brand-500 font-bold text-xl shadow-lg shadow-brand-900/50 log-btn">
+        + Parada
+    </button>
+    <button type="button" data-type="pudo" class="tap-btn w-full py-5 rounded-2xl bg-slate-700 hover:bg-slate-600 font-semibold text-lg log-btn">
+        + Ponto PUDO
+    </button>
+    <button type="button" data-type="pickup" class="tap-btn w-full py-5 rounded-2xl bg-slate-700 hover:bg-slate-600 font-semibold text-lg log-btn">
+        + Recolha
+    </button>
+</div>
+
+{% if comparison.has_discrepancy or comparison.company_total > 0 %}
+<div class="bg-amber-900/30 border border-amber-700/50 rounded-xl p-4 mb-6">
+    <p class="text-amber-300 text-sm font-medium">Comparativo com empresa</p>
+    <p class="text-xs text-amber-400/80 mt-1">Empresa reporta: {{ comparison.company_stops }}/{{ comparison.company_pudo }}/{{ comparison.company_pickups }}</p>
+</div>
+{% endif %}
+
+<h2 class="text-sm font-medium text-slate-400 mb-3">Últimos registos</h2>
+<ul class="space-y-2" id="recent-list">
+    {% for event in recent_events %}
+    <li class="flex justify-between text-sm bg-slate-800/50 rounded-lg px-3 py-2">
+        <span>{{ event.get_event_type_display }}</span>
+        <span class="text-slate-500">{{ event.recorded_at|time:"H:i" }}</span>
+    </li>
+    {% empty %}
+    <li class="text-slate-500 text-sm">Sem registos hoje.</li>
+    {% endfor %}
+</ul>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const csrf = '{{ csrf_token }}';
+document.querySelectorAll('.log-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        const fd = new FormData();
+        fd.append('event_type', btn.dataset.type);
+        try {
+            const res = await fetch('{% url "driver_log_event" %}', {
+                method: 'POST',
+                headers: { 'X-CSRFToken': csrf },
+                body: fd,
+            });
+            const data = await res.json();
+            if (data.ok) {
+                document.getElementById('count-stops').textContent = data.stops;
+                document.getElementById('count-pudo').textContent = data.pudo;
+                document.getElementById('count-pickups').textContent = data.pickups;
+                if (navigator.vibrate) navigator.vibrate(30);
+            }
+        } finally {
+            btn.disabled = false;
+        }
+    });
+});
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+}
+</script>
+{% endblock %}

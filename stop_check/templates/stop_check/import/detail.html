@@ -1,0 +1,26 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Detalhe Importação — StopCheck{% endblock %}
+
+{% block header %}<h2 class="text-lg font-semibold text-slate-800">Importação #{{ batch.pk }}</h2>{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl space-y-4">
+    <div class="bg-white rounded-xl border border-slate-200 p-6">
+        <dl class="grid grid-cols-2 gap-4 text-sm">
+            <div><dt class="text-slate-500">Estado</dt><dd class="font-medium">{{ batch.get_status_display }}</dd></div>
+            <div><dt class="text-slate-500">Data</dt><dd>{{ batch.created_at|date:"d/m/Y H:i" }}</dd></div>
+            <div><dt class="text-slate-500">Linhas processadas</dt><dd>{{ batch.rows_processed }}</dd></div>
+            <div><dt class="text-slate-500">Atualizados</dt><dd class="text-emerald-600 font-semibold">{{ batch.rows_updated }}</dd></div>
+            <div><dt class="text-slate-500">Erros</dt><dd class="text-red-600">{{ batch.rows_failed }}</dd></div>
+        </dl>
+    </div>
+    {% if batch.error_log %}
+    <div class="bg-red-50 border border-red-100 rounded-xl p-4">
+        <h3 class="font-medium text-red-800 mb-2">Log de erros</h3>
+        <pre class="text-xs text-red-700 whitespace-pre-wrap">{{ batch.error_log }}</pre>
+    </div>
+    {% endif %}
+    <a href="{% url 'comparison_list' %}" class="inline-flex px-6 py-3 bg-brand-600 text-white rounded-lg">Ver Comparações</a>
+</div>
+{% endblock %}

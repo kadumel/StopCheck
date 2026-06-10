@@ -1,0 +1,40 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Frota — StopCheck{% endblock %}
+
+{% block header %}<h2 class="text-lg font-semibold text-slate-800">Frota de Veículos</h2>{% endblock %}
+
+{% block header_actions %}
+{% if user.profile.is_manager %}
+<a href="{% url 'vehicle_create' %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">Novo Veículo</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for vehicle in vehicles %}
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 {% if not vehicle.is_active %}opacity-60{% endif %}">
+        <div class="flex items-start justify-between">
+            <div>
+                <h3 class="text-xl font-bold text-slate-800">{{ vehicle.plate }}</h3>
+                <p class="text-sm text-slate-500 mt-1">{{ vehicle.brand }} {{ vehicle.model }}{% if vehicle.year %} ({{ vehicle.year }}){% endif %}</p>
+                {% if vehicle.fuel_type %}<p class="text-xs text-slate-400 mt-1">{{ vehicle.fuel_type }}</p>{% endif %}
+            </div>
+            <span class="px-2 py-1 text-xs rounded-full {% if vehicle.is_active %}bg-emerald-100 text-emerald-700{% else %}bg-slate-100 text-slate-500{% endif %}">
+                {% if vehicle.is_active %}Ativo{% else %}Inativo{% endif %}
+            </span>
+        </div>
+        {% if user.profile.is_manager %}
+        <a href="{% url 'vehicle_edit' vehicle.pk %}" class="inline-block mt-4 text-sm text-brand-600 hover:underline">Editar</a>
+        {% endif %}
+    </div>
+    {% empty %}
+    <div class="col-span-full text-center py-16 bg-white rounded-xl border border-slate-200">
+        <p class="text-slate-500 mb-4">Nenhum veículo registado.</p>
+        {% if user.profile.is_manager %}
+        <a href="{% url 'vehicle_create' %}" class="inline-flex px-6 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition">Adicionar Veículo</a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

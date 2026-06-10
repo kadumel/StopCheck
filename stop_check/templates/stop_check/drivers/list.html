@@ -1,0 +1,65 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Motoristas — StopCheck{% endblock %}
+
+{% block header %}<h2 class="text-lg font-semibold text-slate-800">Motoristas</h2>{% endblock %}
+
+{% block header_actions %}
+{% if user.profile.is_manager %}
+<a href="{% url 'driver_create' %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">Novo Motorista</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    {% if drivers %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-50">
+                <tr class="text-left text-slate-500">
+                    <th class="px-4 py-3 font-medium">Nome</th>
+                    <th class="px-4 py-3 font-medium">Contacto</th>
+                    <th class="px-4 py-3 font-medium">Veículo Padrão</th>
+                    <th class="px-4 py-3 font-medium">Estado</th>
+                    <th class="px-4 py-3 font-medium">Conta</th>
+                    <th class="px-4 py-3 font-medium"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for driver in drivers %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-4 py-3 font-medium">{{ driver.name }}</td>
+                    <td class="px-4 py-3 text-slate-500">{{ driver.phone|default:driver.email|default:"—" }}</td>
+                    <td class="px-4 py-3">{{ driver.default_vehicle.plate|default:"—" }}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 text-xs rounded-full {% if driver.is_active %}bg-emerald-100 text-emerald-700{% else %}bg-slate-100 text-slate-500{% endif %}">
+                            {% if driver.is_active %}Ativo{% else %}Inativo{% endif %}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3">
+                        {% if driver.user %}
+                        <span class="text-xs text-brand-600">Com login</span>
+                        {% else %}
+                        <span class="text-xs text-slate-400">Sem conta</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        {% if user.profile.is_manager %}
+                        <a href="{% url 'driver_edit' driver.pk %}" class="text-brand-600 hover:underline">Editar</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <p class="text-slate-500 mb-4">Nenhum motorista registado.</p>
+        {% if user.profile.is_manager %}
+        <a href="{% url 'driver_create' %}" class="inline-flex px-6 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition">Adicionar Motorista</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

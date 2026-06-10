@@ -1,0 +1,24 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}{{ title }} — StopCheck{% endblock %}
+
+{% block header %}<h2 class="text-lg font-semibold text-slate-800">{{ title }}</h2>{% endblock %}
+
+{% block content %}
+<div class="max-w-lg">
+    <form method="post" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+        {% csrf_token %}
+        {% for field in form %}
+        <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}<p class="text-red-500 text-xs mt-1">{{ field.errors.0 }}</p>{% endif %}
+        </div>
+        {% endfor %}
+        <div class="flex gap-3 pt-2">
+            <button type="submit" class="px-6 py-2.5 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition">Guardar</button>
+            <a href="{% url 'expense_list' %}" class="px-6 py-2.5 text-slate-600 rounded-lg hover:bg-slate-100 transition">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

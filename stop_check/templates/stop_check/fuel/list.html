@@ -1,0 +1,50 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Combustível — StopCheck{% endblock %}
+
+{% block header %}<h2 class="text-lg font-semibold text-slate-800">Combustível — {{ month_name }} {{ year }}</h2>{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'fuel_create' %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">Novo Abastecimento</a>
+{% endblock %}
+
+{% block content %}
+<div class="bg-brand-50 border border-brand-100 rounded-xl p-4 mb-6">
+    <p class="text-sm text-brand-700">Total do mês: <span class="font-bold text-lg">{{ total|floatformat:2 }} €</span></p>
+</div>
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    {% if records %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-50">
+                <tr class="text-left text-slate-500">
+                    <th class="px-4 py-3 font-medium">Data</th>
+                    <th class="px-4 py-3 font-medium">Veículo</th>
+                    <th class="px-4 py-3 font-medium">Litros</th>
+                    <th class="px-4 py-3 font-medium">€/L</th>
+                    <th class="px-4 py-3 font-medium">Total</th>
+                    <th class="px-4 py-3 font-medium">Posto</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for record in records %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-4 py-3">{{ record.date|date:"d/m/Y" }}</td>
+                    <td class="px-4 py-3 font-medium">{{ record.vehicle.plate }}</td>
+                    <td class="px-4 py-3">{{ record.liters }} L</td>
+                    <td class="px-4 py-3">{{ record.price_per_liter|floatformat:3 }} €</td>
+                    <td class="px-4 py-3 font-semibold">{{ record.total_cost|floatformat:2 }} €</td>
+                    <td class="px-4 py-3 text-slate-500">{{ record.station|default:"—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <p class="text-slate-500 mb-4">Sem registos de combustível este mês.</p>
+        <a href="{% url 'fuel_create' %}" class="inline-flex px-6 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition">Registar Abastecimento</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

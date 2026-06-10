@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <title>StopCheck — Relatório {{ month_name }} {{ year }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; color: #1e293b; }
+        h1 { color: #059669; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; font-size: 13px; }
+        th { background: #f1f5f9; }
+        .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0; }
+        .card { padding: 16px; border: 1px solid #e2e8f0; border-radius: 8px; }
+        .card h3 { margin: 0 0 8px; font-size: 14px; color: #64748b; }
+        .card p { margin: 0; font-size: 24px; font-weight: bold; }
+        @media print { body { margin: 0; } }
+    </style>
+</head>
+<body onload="window.print()">
+    <h1>StopCheck — Relatório Mensal</h1>
+    <p><strong>{{ org.name }}</strong> — {{ month_name }} {{ year }}</p>
+
+    <div class="summary">
+        <div class="card"><h3>Receita Bruta</h3><p style="color:#059669">{{ stats.gross_revenue|floatformat:2 }} €</p></div>
+        <div class="card"><h3>Total Despesas</h3><p style="color:#dc2626">{{ stats.total_expenses|floatformat:2 }} €</p></div>
+        <div class="card"><h3>Lucro Líquido</h3><p>{{ stats.net_profit|floatformat:2 }} €</p></div>
+        <div class="card"><h3>Discrepâncias</h3><p>{{ stats.discrepancy_count }}</p></div>
+    </div>
+
+    <h2>Comparações Diárias</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Data</th><th>Motorista</th>
+                <th>Stops (M)</th><th>PUDO (M)</th><th>Rec. (M)</th>
+                <th>Stops (E)</th><th>PUDO (E)</th><th>Rec. (E)</th>
+                <th>Dif.</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for comp in stats.comparisons %}
+            <tr>
+                <td>{{ comp.date|date:"d/m/Y" }}</td>
+                <td>{{ comp.driver.name }}</td>
+                <td>{{ comp.driver_stops }}</td><td>{{ comp.driver_pudo }}</td><td>{{ comp.driver_pickups }}</td>
+                <td>{{ comp.company_stops }}</td><td>{{ comp.company_pudo }}</td><td>{{ comp.company_pickups }}</td>
+                <td>{% if comp.diff_total > 0 %}+{% endif %}{{ comp.diff_total }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

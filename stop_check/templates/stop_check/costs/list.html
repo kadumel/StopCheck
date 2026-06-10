@@ -1,0 +1,52 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Despesas — StopCheck{% endblock %}
+
+{% block header %}<h2 class="text-lg font-semibold text-slate-800">Despesas — {{ month_name }} {{ year }}</h2>{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'expense_create' %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">Nova Despesa</a>
+{% endblock %}
+
+{% block content %}
+<div class="bg-red-50 border border-red-100 rounded-xl p-4 mb-6">
+    <p class="text-sm text-red-700">Total do mês: <span class="font-bold text-lg">{{ total|floatformat:2 }} €</span></p>
+</div>
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    {% if expenses %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-50">
+                <tr class="text-left text-slate-500">
+                    <th class="px-4 py-3 font-medium">Data</th>
+                    <th class="px-4 py-3 font-medium">Descrição</th>
+                    <th class="px-4 py-3 font-medium">Categoria</th>
+                    <th class="px-4 py-3 font-medium">Veículo</th>
+                    <th class="px-4 py-3 font-medium">Valor</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for expense in expenses %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-4 py-3">{{ expense.date|date:"d/m/Y" }}</td>
+                    <td class="px-4 py-3 font-medium">{{ expense.description }}</td>
+                    <td class="px-4 py-3">
+                        {% if expense.category %}
+                        <span class="px-2 py-0.5 text-xs rounded-full" style="background-color: {{ expense.category.color }}20; color: {{ expense.category.color }}">{{ expense.category.name }}</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-slate-500">{{ expense.vehicle.plate|default:"—" }}</td>
+                    <td class="px-4 py-3 font-semibold text-red-700">{{ expense.amount|floatformat:2 }} €</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        <p class="text-slate-500 mb-4">Sem despesas registadas este mês.</p>
+        <a href="{% url 'expense_create' %}" class="inline-flex px-6 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition">Registar Despesa</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

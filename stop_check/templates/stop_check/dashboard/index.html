@@ -1,0 +1,149 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Dashboard — StopCheck{% endblock %}
+
+{% block header %}
+<div class="flex items-center gap-4">
+    <a href="?year={{ prev_year }}&month={{ prev_month }}" class="p-2 rounded-lg hover:bg-slate-100 text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <h2 class="text-lg font-semibold text-slate-800">{{ month_name }} {{ year }}</h2>
+    <a href="?year={{ next_year }}&month={{ next_month }}" class="p-2 rounded-lg hover:bg-slate-100 text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </a>
+</div>
+{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'export_excel' %}?year={{ year }}&month={{ month }}" class="hidden sm:inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition">
+    Excel
+</a>
+<a href="{% url 'export_pdf' %}?year={{ year }}&month={{ month }}" target="_blank" class="hidden sm:inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition">
+    PDF
+</a>
+<a href="{% url 'comparison_create' %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+    Nova Comparação
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Stats cards -->
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+        <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Dias com dados</p>
+        <p class="text-2xl font-bold text-slate-800 mt-1">({{ stats.days_with_data }})</p>
+        <p class="text-sm text-slate-400 mt-1">Fonte Principal</p>
+    </div>
+    <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+        <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Média Stops/dia</p>
+        <p class="text-2xl font-bold text-brand-600 mt-1">{{ stats.avg_stops }}</p>
+    </div>
+    <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+        <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Média Ponto Pudo/dia</p>
+        <p class="text-2xl font-bold text-brand-600 mt-1">{{ stats.avg_pudo }}</p>
+    </div>
+    <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
+        <p class="text-xs font-medium text-slate-500 uppercase tracking-wide">Média Recolha/dia</p>
+        <p class="text-2xl font-bold text-brand-600 mt-1">{{ stats.avg_pickups }}</p>
+    </div>
+</div>
+
+<!-- Financial summary -->
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+    <h3 class="text-lg font-semibold text-slate-800 mb-4">Resumo Financeiro</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="p-4 rounded-lg bg-emerald-50 border border-emerald-100">
+            <p class="text-sm text-emerald-700">Receita Bruta do Mês</p>
+            <p class="text-2xl font-bold text-emerald-800 mt-1">{{ stats.gross_revenue|floatformat:2 }} €</p>
+        </div>
+        <div class="p-4 rounded-lg bg-red-50 border border-red-100">
+            <p class="text-sm text-red-700">Total Despesas</p>
+            <p class="text-2xl font-bold text-red-800 mt-1">{{ stats.total_expenses|floatformat:2 }} €</p>
+        </div>
+        <div class="p-4 rounded-lg {% if stats.net_profit >= 0 %}bg-brand-50 border-brand-100{% else %}bg-orange-50 border-orange-100{% endif %} border">
+            <p class="text-sm {% if stats.net_profit >= 0 %}text-brand-700{% else %}text-orange-700{% endif %}">Lucro Líquido</p>
+            <p class="text-2xl font-bold {% if stats.net_profit >= 0 %}text-brand-800{% else %}text-orange-800{% endif %} mt-1">{{ stats.net_profit|floatformat:2 }} €</p>
+        </div>
+        <div class="p-4 rounded-lg bg-slate-50 border border-slate-200">
+            <p class="text-sm text-slate-600">Custo por Operação</p>
+            <p class="text-2xl font-bold text-slate-800 mt-1">
+                {% if stats.cost_per_operation %}{{ stats.cost_per_operation|floatformat:3 }} €{% else %}Sem dados{% endif %}
+            </p>
+            <p class="text-xs text-slate-400 mt-1">Combustível ÷ (Stops + Recolhas + PUDO)</p>
+        </div>
+    </div>
+</div>
+
+<!-- Comparisons -->
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-slate-800">Comparações do Mês</h3>
+        {% if stats.discrepancy_count > 0 %}
+        <span class="px-3 py-1 text-xs font-medium bg-red-100 text-red-700 rounded-full">
+            {{ stats.discrepancy_count }} discrepância{{ stats.discrepancy_count|pluralize:"s" }}
+        </span>
+        {% endif %}
+    </div>
+
+    {% if stats.comparisons %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-slate-200 text-left text-slate-500">
+                    <th class="pb-3 pr-4 font-medium">Data</th>
+                    <th class="pb-3 pr-4 font-medium">Motorista</th>
+                    <th class="pb-3 pr-4 font-medium text-center" colspan="3">Seus Dados</th>
+                    <th class="pb-3 pr-4 font-medium text-center" colspan="3">Empresa</th>
+                    <th class="pb-3 font-medium text-center">Dif.</th>
+                    <th class="pb-3 font-medium"></th>
+                </tr>
+                <tr class="border-b border-slate-100 text-xs text-slate-400">
+                    <th colspan="2"></th>
+                    <th class="py-2 pr-2">Stops</th>
+                    <th class="py-2 pr-2">PUDO</th>
+                    <th class="py-2 pr-4">Rec.</th>
+                    <th class="py-2 pr-2">Stops</th>
+                    <th class="py-2 pr-2">PUDO</th>
+                    <th class="py-2 pr-4">Rec.</th>
+                    <th colspan="2"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for comp in stats.comparisons %}
+                <tr class="hover:bg-slate-50 {% if comp.has_discrepancy %}bg-red-50/50{% endif %}">
+                    <td class="py-3 pr-4 font-medium">{{ comp.date|date:"d/m/Y" }}</td>
+                    <td class="py-3 pr-4">{{ comp.driver.name }}</td>
+                    <td class="py-3 pr-2 text-center font-semibold text-brand-700">{{ comp.driver_stops }}</td>
+                    <td class="py-3 pr-2 text-center font-semibold text-brand-700">{{ comp.driver_pudo }}</td>
+                    <td class="py-3 pr-4 text-center font-semibold text-brand-700">{{ comp.driver_pickups }}</td>
+                    <td class="py-3 pr-2 text-center text-slate-600">{{ comp.company_stops }}</td>
+                    <td class="py-3 pr-2 text-center text-slate-600">{{ comp.company_pudo }}</td>
+                    <td class="py-3 pr-4 text-center text-slate-600">{{ comp.company_pickups }}</td>
+                    <td class="py-3 text-center">
+                        <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-bold {% if comp.diff_total > 0 %}bg-emerald-100 text-emerald-700{% elif comp.diff_total < 0 %}bg-red-100 text-red-700{% else %}bg-slate-100 text-slate-600{% endif %}">
+                            {% if comp.diff_total > 0 %}+{% endif %}{{ comp.diff_total }}
+                        </span>
+                    </td>
+                    <td class="py-3">
+                        <a href="{% url 'comparison_edit' comp.pk %}" class="text-brand-600 hover:underline text-xs">Editar</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-12">
+        <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
+            <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        </div>
+        <h4 class="text-lg font-medium text-slate-700">Nenhum dado para {{ month_name }} {{ year }}</h4>
+        <p class="text-slate-500 mt-2 mb-6">Crie uma comparação para começar a registrar dados neste mês.</p>
+        <a href="{% url 'comparison_create' %}" class="inline-flex items-center gap-2 px-6 py-3 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition">
+            Criar Comparação
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

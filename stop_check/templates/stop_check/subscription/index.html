@@ -1,0 +1,83 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Assinatura — StopCheck{% endblock %}
+
+{% block header %}<h2 class="text-lg font-semibold text-slate-800">Assinatura e Tarifas</h2>{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="font-semibold text-slate-800 mb-4">Plano Atual</h3>
+        <div class="p-5 rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 text-white mb-4">
+            <p class="text-brand-100 text-sm">Mensalidade</p>
+            <p class="text-4xl font-bold mt-1">{{ monthly_price|floatformat:2 }} €</p>
+            <p class="text-brand-100 text-sm mt-2">{{ vehicle_count }} veículo{{ vehicle_count|pluralize:"s" }} ativo{{ vehicle_count|pluralize:"s" }}</p>
+        </div>
+        <dl class="space-y-2 text-sm">
+            <div class="flex justify-between py-2 border-b border-slate-100">
+                <dt class="text-slate-500">1º veículo</dt>
+                <dd>{{ base_price|floatformat:2 }} €/mês</dd>
+            </div>
+            <div class="flex justify-between py-2 border-b border-slate-100">
+                <dt class="text-slate-500">Veículos adicionais</dt>
+                <dd>+{{ additional_price|floatformat:2 }} €/mês cada</dd>
+            </div>
+            <div class="flex justify-between py-2">
+                <dt class="text-slate-500">Estado</dt>
+                <dd>
+                    <span class="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-700">
+                        {{ subscription.get_status_display|default:"Ativa" }}
+                    </span>
+                </dd>
+            </div>
+        </dl>
+        <h4 class="font-medium text-slate-700 mt-6 mb-3">Veículos na Assinatura</h4>
+        <ul class="space-y-2">
+            {% for v in vehicles %}
+            <li class="flex items-center gap-2 text-sm"><span class="w-2 h-2 rounded-full bg-brand-500"></span>{{ v.plate }} — {{ v.brand }} {{ v.model }}</li>
+            {% empty %}
+            <li class="text-slate-400 text-sm">Nenhum veículo ativo. <a href="{% url 'vehicle_create' %}" class="text-brand-600 hover:underline">Adicionar</a></li>
+            {% endfor %}
+        </ul>
+
+        <div class="mt-6 pt-6 border-t border-slate-100 space-y-3">
+            <h4 class="font-medium text-slate-700">Pagamento</h4>
+            {% if stripe_enabled %}
+                {% if subscription.stripe_subscription_id %}
+                <a href="{% url 'stripe_portal' %}" class="block w-full text-center py-3 bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition text-sm font-medium">
+                    Gerir subscrição (Stripe)
+                </a>
+                {% else %}
+                <a href="{% url 'stripe_checkout' %}" class="block w-full text-center py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition text-sm font-medium">
+                    Subscrever com cartão — {{ monthly_price|floatformat:2 }} €/mês
+                </a>
+                {% endif %}
+                <p class="text-xs text-slate-400 text-center">Pagamento seguro via Stripe (Visa, Mastercard, MB Way*)</p>
+            {% else %}
+                <p class="text-sm text-slate-500 bg-slate-50 rounded-lg p-3">
+                    Configure <code class="text-xs">STRIPE_SECRET_KEY</code> para activar pagamentos online.
+                    Entretanto, contacte-nos para activar por transferência ou MB Way.
+                </p>
+            {% endif %}
+            {% if subscription.trial_end_date %}
+            <p class="text-xs text-slate-400">Trial até {{ subscription.trial_end_date|date:"d/m/Y" }}</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="font-semibold text-slate-800 mb-2">Tarifas de Receita</h3>
+        <p class="text-sm text-slate-500 mb-4">Configure quanto recebe por cada operação para calcular a receita bruta.</p>
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            {% for field in form %}
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ field.label }}</label>
+                {{ field }}
+            </div>
+            {% endfor %}
+            <button type="submit" class="px-6 py-2.5 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition">Guardar Tarifas</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

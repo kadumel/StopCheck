@@ -1,0 +1,55 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Importações — StopCheck{% endblock %}
+
+{% block header %}<h2 class="text-lg font-semibold text-slate-800">Importar Dados da Empresa</h2>{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'import_upload' %}" class="inline-flex px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">Nova Importação</a>
+{% endblock %}
+
+{% block content %}
+<div class="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 text-sm text-blue-800">
+    <p class="font-medium mb-1">Formato do ficheiro (CSV ou Excel)</p>
+    <p class="text-blue-700">Colunas: <code>data</code>, <code>motorista</code>, <code>paradas</code>, <code>pudo</code>, <code>recolhas</code></p>
+    <p class="text-blue-600 mt-2 text-xs">Os dados importados preenchem a coluna "Empresa" nas comparações diárias.</p>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    {% if batches %}
+    <table class="w-full text-sm">
+        <thead class="bg-slate-50">
+            <tr class="text-left text-slate-500">
+                <th class="px-4 py-3">Data</th>
+                <th class="px-4 py-3">Ficheiro</th>
+                <th class="px-4 py-3">Estado</th>
+                <th class="px-4 py-3">Atualizados</th>
+                <th class="px-4 py-3">Erros</th>
+                <th class="px-4 py-3"></th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+            {% for batch in batches %}
+            <tr class="hover:bg-slate-50">
+                <td class="px-4 py-3">{{ batch.created_at|date:"d/m/Y H:i" }}</td>
+                <td class="px-4 py-3">{{ batch.file.name|truncatechars:30 }}</td>
+                <td class="px-4 py-3">
+                    <span class="px-2 py-1 text-xs rounded-full {% if batch.status == 'completed' %}bg-emerald-100 text-emerald-700{% elif batch.status == 'failed' %}bg-red-100 text-red-700{% else %}bg-slate-100 text-slate-600{% endif %}">
+                        {{ batch.get_status_display }}
+                    </span>
+                </td>
+                <td class="px-4 py-3">{{ batch.rows_updated }}</td>
+                <td class="px-4 py-3">{{ batch.rows_failed }}</td>
+                <td class="px-4 py-3"><a href="{% url 'import_detail' batch.pk %}" class="text-brand-600 hover:underline">Detalhes</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="text-center py-16">
+        <p class="text-slate-500 mb-4">Nenhuma importação realizada.</p>
+        <a href="{% url 'import_upload' %}" class="inline-flex px-6 py-3 bg-brand-600 text-white rounded-lg">Importar Ficheiro</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends 'stop_check/mobile/base_mobile.html' %}
+
+{% block title %}Histórico — StopCheck{% endblock %}
+
+{% block content %}
+<h2 class="text-lg font-semibold mb-4">Últimos 30 dias</h2>
+<div class="space-y-3">
+    {% for comp in comparisons %}
+    <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 {% if comp.has_discrepancy %}border-red-500/50{% endif %}">
+        <div class="flex justify-between items-start mb-2">
+            <p class="font-medium">{{ comp.date|date:"d/m/Y" }}</p>
+            {% if comp.has_discrepancy %}
+            <span class="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-300">Dif. {{ comp.diff_total }}</span>
+            {% endif %}
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-sm">
+            <div>
+                <p class="text-slate-500 text-xs">Seus dados</p>
+                <p class="text-brand-400 font-semibold">{{ comp.driver_stops }} / {{ comp.driver_pudo }} / {{ comp.driver_pickups }}</p>
+            </div>
+            <div>
+                <p class="text-slate-500 text-xs">Empresa</p>
+                <p class="text-slate-300">{{ comp.company_stops }} / {{ comp.company_pudo }} / {{ comp.company_pickups }}</p>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <p class="text-slate-500 text-center py-8">Sem histórico ainda.</p>
+    {% endfor %}
+</div>
+{% endblock %}

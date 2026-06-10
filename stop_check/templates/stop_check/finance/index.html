@@ -1,0 +1,51 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Financeiro — StopCheck{% endblock %}
+
+{% block header %}<h2 class="text-lg font-semibold text-slate-800">Controlo Financeiro — {{ month_name }} {{ year }}</h2>{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="font-semibold text-slate-800 mb-4">Resumo do Mês</h3>
+        <dl class="space-y-3">
+            <div class="flex justify-between"><dt class="text-slate-500">Receita Bruta</dt><dd class="font-semibold text-emerald-700">{{ stats.gross_revenue|floatformat:2 }} €</dd></div>
+            <div class="flex justify-between"><dt class="text-slate-500">Combustível</dt><dd class="font-semibold text-red-600">-{{ stats.fuel_cost|floatformat:2 }} €</dd></div>
+            <div class="flex justify-between"><dt class="text-slate-500">Outras Despesas</dt><dd class="font-semibold text-red-600">-{{ stats.other_expenses|floatformat:2 }} €</dd></div>
+            <div class="border-t pt-3 flex justify-between"><dt class="font-medium text-slate-800">Lucro Líquido</dt><dd class="font-bold text-lg {% if stats.net_profit >= 0 %}text-brand-700{% else %}text-red-700{% endif %}">{{ stats.net_profit|floatformat:2 }} €</dd></div>
+        </dl>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="font-semibold text-slate-800 mb-4">Produtividade vs Empresa</h3>
+        <dl class="space-y-3">
+            <div class="flex justify-between"><dt class="text-slate-500">Stops (Seus / Empresa)</dt><dd><span class="font-semibold text-brand-700">{{ stats.total_stops }}</span> / {{ stats.company_totals.stops }}</dd></div>
+            <div class="flex justify-between"><dt class="text-slate-500">PUDO (Seus / Empresa)</dt><dd><span class="font-semibold text-brand-700">{{ stats.total_pudo }}</span> / {{ stats.company_totals.pudo }}</dd></div>
+            <div class="flex justify-between"><dt class="text-slate-500">Recolhas (Seus / Empresa)</dt><dd><span class="font-semibold text-brand-700">{{ stats.total_pickups }}</span> / {{ stats.company_totals.pickups }}</dd></div>
+            <div class="border-t pt-3 flex justify-between"><dt class="font-medium text-slate-800">Discrepâncias</dt><dd class="font-bold {% if stats.discrepancy_count > 0 %}text-red-600{% else %}text-emerald-600{% endif %}">{{ stats.discrepancy_count }}</dd></div>
+        </dl>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="font-semibold text-slate-800 mb-4">Combustível por Veículo</h3>
+        {% if fuel_by_vehicle %}
+        <ul class="space-y-2">
+            {% for plate, cost in fuel_by_vehicle.items %}
+            <li class="flex justify-between text-sm"><span>{{ plate }}</span><span class="font-medium">{{ cost|floatformat:2 }} €</span></li>
+            {% endfor %}
+        </ul>
+        {% else %}<p class="text-slate-400 text-sm">Sem dados</p>{% endif %}
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="font-semibold text-slate-800 mb-4">Despesas por Categoria</h3>
+        {% if expenses_by_category %}
+        <ul class="space-y-2">
+            {% for cat, amount in expenses_by_category.items %}
+            <li class="flex justify-between text-sm"><span>{{ cat }}</span><span class="font-medium text-red-600">{{ amount|floatformat:2 }} €</span></li>
+            {% endfor %}
+        </ul>
+        {% else %}<p class="text-slate-400 text-sm">Sem dados</p>{% endif %}
+    </div>
+</div>
+{% endblock %}
