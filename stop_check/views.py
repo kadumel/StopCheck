@@ -14,6 +14,7 @@ from .decorators import admin_required, get_home_url_name, manager_required, org
 from .forms import (
     DailyComparisonForm,
     DriverForm,
+    EmailVerificationForm,
     ExpenseForm,
     FuelRecordForm,
     LoginForm,
@@ -30,6 +31,13 @@ from .models import (
     Vehicle,
 )
 from .services import stripe_service
+from .services.email_service import (
+    create_verification,
+    resend_verification,
+    send_verification_email,
+    verify_code,
+)
+from .services.registration_service import build_registration_payload, create_account_from_payload
 from .utils import get_dashboard_stats, get_month_range, get_or_create_rate_config
 
 
@@ -66,13 +74,86 @@ def register_view(request):
     if request.method == 'POST':
         form = RegisterForm(request.POST)
         if form.is_valid():
-            user = form.save()
-            login(request, user)
-            messages.success(request, 'Conta criada com sucesso! Bem-vindo ao StopCheck.')
-            return redirect('dashboard')
+            email = form.cleaned_data['email'].lower().strip()
+            payload = build_registration_payload(form.cleaned_data)
+            verification, code = create_verification(email, payload)
+            try:
+                send_verification_email(
+                    email=email,
+                    code=code,
+                    organization_name=form.cleaned_data['organization_name'],
+                    first_name=form.cleaned_data['first_name'],
+                )
+            except Exception as exc:
+                verification.delete()
+                messages.error(request, f'Não foi possível enviar o email de verificação: {exc}')
+                return render(request, 'stop_check/auth/register.html', {'form': form})
+
+            request.session['pending_registration_email'] = email
+            messages.success(
+                request,
+                f'Enviámos um código de 6 dígitos para {email}. Verifique a sua caixa de entrada.',
+            )
+            return redirect('verify_email')
     else:
         form = RegisterForm()
     return render(request, 'stop_check/auth/register.html', {'form': form})
+
+
+def verify_email_view(request):
+    if request.user.is_authenticated and hasattr(request.user, 'profile'):
+        return redirect('dashboard')
+
+    email = request.session.get('pending_registration_email')
+    if not email:
+        messages.warning(request, 'Inicie o registo para receber o código de verificação.')
+        return redirect('register')
+
+    if request.method == 'POST':
+        form = EmailVerificationForm(request.POST)
+        if form.is_valid():
+            verification, error = verify_code(email, form.cleaned_data['code'])
+            if error:
+                messages.error(request, error)
+            else:
+                try:
+                    user = create_account_from_payload(verification.payload)
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+                    return redirect('register')
+
+                del request.session['pending_registration_email']
+                login(request, user)
+                messages.success(request, 'Email confirmado! Bem-vindo ao StopCheck.')
+                return redirect('dashboard')
+    else:
+        form = EmailVerificationForm()
+
+    return render(request, 'stop_check/auth/verify_email.html', {'form': form, 'email': email})
+
+
+def resend_verification_view(request):
+    email = request.session.get('pending_registration_email')
+    if not email:
+        return redirect('register')
+
+    verification, code, error = resend_verification(email)
+    if error:
+        messages.error(request, error)
+        return redirect('register')
+
+    try:
+        send_verification_email(
+            email=email,
+            code=code,
+            organization_name=verification.payload.get('organization_name', ''),
+            first_name=verification.payload.get('first_name', ''),
+        )
+        messages.success(request, 'Novo código enviado para o seu email.')
+    except Exception as exc:
+        messages.error(request, f'Erro ao reenviar código: {exc}')
+
+    return redirect('verify_email')
 
 
 @organization_required

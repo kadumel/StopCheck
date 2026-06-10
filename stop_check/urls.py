@@ -10,6 +10,8 @@ urlpatterns = [
     path('login/', views.CustomLoginView.as_view(), name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('registar/', views.register_view, name='register'),
+    path('registar/verificar/', views.verify_email_view, name='verify_email'),
+    path('registar/reenviar/', views.resend_verification_view, name='resend_verification'),
 
     path('comparacoes/', views.comparison_list, name='comparison_list'),
     path('comparacoes/nova/', views.comparison_create, name='comparison_create'),

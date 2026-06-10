@@ -1,9 +1,6 @@
-from datetime import timedelta
-
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.models import User
-from django.utils import timezone
 
 from .models import (
     DailyComparison,
@@ -50,37 +47,32 @@ class RegisterForm(StyledFormMixin, UserCreationForm):
         model = User
         fields = ('username', 'first_name', 'last_name', 'email', 'password1', 'password2')
 
-    def save(self, commit=True):
-        user = super().save(commit=False)
-        user.email = self.cleaned_data['email']
-        user.first_name = self.cleaned_data['first_name']
-        user.last_name = self.cleaned_data.get('last_name', '')
-        if commit:
-            user.save()
-            org = Organization.objects.create(
-                name=self.cleaned_data['organization_name'],
-                email=self.cleaned_data['email'],
-                phone=self.cleaned_data.get('phone', ''),
-            )
-            from .models import Subscription, RateConfig
+    def clean_email(self):
+        email = self.cleaned_data['email'].lower().strip()
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError('Este email já está registado.')
+        return email
 
-            trial_end = timezone.now().date() + timedelta(days=14)
-            Subscription.objects.create(organization=org, trial_end_date=trial_end)
-            RateConfig.objects.create(organization=org)
-            UserProfile.objects.create(
-                user=user, organization=org, role=UserProfile.ROLE_ADMIN,
-                phone=self.cleaned_data.get('phone', ''),
-            )
-            default_categories = [
-                ('Manutenção', '#ef4444'),
-                ('Seguro', '#3b82f6'),
-                ('Portagens', '#f59e0b'),
-                ('Estacionamento', '#8b5cf6'),
-                ('Outros', '#64748b'),
-            ]
-            for name, color in default_categories:
-                ExpenseCategory.objects.create(organization=org, name=name, color=color)
-        return user
+
+class EmailVerificationForm(StyledFormMixin, forms.Form):
+    code = forms.CharField(
+        label='Código de verificação',
+        max_length=6,
+        min_length=6,
+        widget=forms.TextInput(attrs={
+            'inputmode': 'numeric',
+            'pattern': '[0-9]{6}',
+            'autocomplete': 'one-time-code',
+            'placeholder': '000000',
+            'class': 'w-full px-4 py-3 rounded-lg border border-slate-300 text-center text-2xl tracking-[0.5em] font-mono focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none',
+        }),
+    )
+
+    def clean_code(self):
+        code = self.cleaned_data['code'].strip()
+        if not code.isdigit() or len(code) != 6:
+            raise forms.ValidationError('Introduza o código de 6 dígitos.')
+        return code
 
 
 class VehicleForm(StyledFormMixin, forms.ModelForm):

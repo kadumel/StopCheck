@@ -124,6 +124,11 @@ STRIPE_PUBLIC_KEY = os.environ.get('STRIPE_PUBLIC_KEY', '')
 STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', '')
 
+# Verificação de email via N8N
+N8N_EMAIL_WEBHOOK_URL = os.environ.get('N8N_EMAIL_WEBHOOK_URL', '')
+EMAIL_SECRET = os.environ.get('EMAIL_SECRET', '')
+SITE_URL = os.environ.get('SITE_URL', '').rstrip('/')
+
 # CSRF — incluir domínio Railway automaticamente
 CSRF_TRUSTED_ORIGINS = [
     o.strip() for o in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()

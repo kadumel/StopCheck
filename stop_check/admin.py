@@ -6,6 +6,7 @@ from .models import (
     DailyComparison,
     DeliveryCompany,
     Driver,
+    EmailVerification,
     Expense,
     ExpenseCategory,
     FuelRecord,
@@ -91,3 +92,10 @@ class StopEventAdmin(admin.ModelAdmin):
 class ImportBatchAdmin(admin.ModelAdmin):
     list_display = ['pk', 'organization', 'status', 'rows_updated', 'rows_failed', 'created_at']
     list_filter = ['status', 'organization']
+
+
+@admin.register(EmailVerification)
+class EmailVerificationAdmin(admin.ModelAdmin):
+    list_display = ['email', 'is_verified', 'attempts', 'expires_at', 'created_at']
+    list_filter = ['is_verified']
+    readonly_fields = ['code_hash', 'payload', 'created_at']

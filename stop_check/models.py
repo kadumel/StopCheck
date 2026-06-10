@@ -429,3 +429,26 @@ class ImportBatch(models.Model):
 
     def __str__(self):
         return f'Importação {self.pk} — {self.organization.name} — {self.get_status_display()}'
+
+
+class EmailVerification(models.Model):
+    """Verificação de email pendente no registo de empresa."""
+    email = models.EmailField(db_index=True)
+    code_hash = models.CharField(max_length=128)
+    payload = models.JSONField()
+    expires_at = models.DateTimeField()
+    is_verified = models.BooleanField(default=False)
+    attempts = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Verificação de Email'
+        verbose_name_plural = 'Verificações de Email'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.email} — {"verificado" if self.is_verified else "pendente"}'
+
+    @property
+    def is_expired(self):
+        return timezone.now() > self.expires_at

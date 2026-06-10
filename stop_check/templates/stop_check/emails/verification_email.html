@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>{{ assunto }}</title>
+  <!--[if mso]>
+  <noscript>
+    <xml>
+      <o:OfficeDocumentSettings>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+    </xml>
+  </noscript>
+  <![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:#f1f5f9;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0" border="0" style="max-width:600px;width:100%;">
+
+          <!-- Faixa superior -->
+          <tr>
+            <td style="font-size:0;line-height:0;border-radius:12px 12px 0 0;overflow:hidden;">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td height="5" style="background-color:#059669;font-size:0;line-height:0;">&nbsp;</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Cabeçalho -->
+          <tr>
+            <td align="center" style="background-color:#0f172a;padding:32px 24px 28px;border-left:1px solid #1e293b;border-right:1px solid #1e293b;">
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 auto 14px;">
+                <tr>
+                  <td align="center" width="72" height="72" style="background-color:#10b981;border-radius:16px;font-size:32px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">
+                    S
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:0;font-size:26px;font-weight:bold;letter-spacing:0.04em;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">
+                StopCheck
+              </p>
+              <p style="margin:8px 0 0;font-size:13px;color:#94a3b8;">
+                Controlo de entregas e produtividade
+              </p>
+            </td>
+          </tr>
+
+          <!-- Conteúdo -->
+          <tr>
+            <td style="background-color:#ffffff;padding:32px 28px;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;color:#1e293b;font-size:16px;line-height:1.65;">
+
+              <p style="margin:0 0 16px;font-size:17px;color:#1e293b;">
+                Olá <strong>{{ first_name }}</strong>,
+              </p>
+
+              <p style="margin:0 0 20px;color:#475569;">
+                Obrigado por registar a empresa <strong style="color:#059669;">{{ organization_name }}</strong> no StopCheck.
+                Para concluir o registo, utilize o código de verificação abaixo:
+              </p>
+
+              <!-- Código -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px;background-color:#ecfdf5;border:2px solid #10b981;border-radius:12px;">
+                <tr>
+                  <td align="center" style="padding:24px 18px;">
+                    <p style="margin:0 0 8px;font-size:13px;color:#047857;text-transform:uppercase;letter-spacing:0.08em;font-weight:bold;">
+                      Código de verificação
+                    </p>
+                    <p style="margin:0;font-size:36px;font-weight:bold;color:#059669;letter-spacing:0.35em;font-family:'Courier New',Courier,monospace;">
+                      {{ code }}
+                    </p>
+                    <p style="margin:12px 0 0;font-size:13px;color:#6b7280;">
+                      Válido por {{ expiry_minutes }} minutos
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 20px;color:#475569;">
+                Introduza este código na página de confirmação para activar a sua conta e começar a gerir
+                paradas, frota, combustível e produtividade da sua equipa.
+              </p>
+
+              {% if site_url %}
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px;">
+                <tr>
+                  <td align="center" style="border-radius:8px;background-color:#059669;">
+                    <a href="{{ verify_url }}" style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;font-family:Arial,Helvetica,sans-serif;">
+                      Confirmar email
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              {% endif %}
+
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 8px;border-left:4px solid #10b981;background-color:#f8fafc;">
+                <tr>
+                  <td style="padding:14px 18px;font-size:14px;color:#64748b;line-height:1.5;">
+                    Se não solicitou este registo, ignore este email. O código expira automaticamente.
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- Rodapé -->
+          <tr>
+            <td align="center" style="background-color:#1e293b;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #1e293b;">
+              <p style="margin:0 0 8px;font-size:13px;color:#94a3b8;line-height:1.5;">
+                Gestão inteligente de entregas
+              </p>
+              {% if site_url %}
+              <a href="{{ site_url }}" style="font-size:13px;color:#34d399;text-decoration:none;font-weight:bold;">{{ site_url }}</a>
+              {% else %}
+              <span style="font-size:13px;color:#34d399;font-weight:bold;">StopCheck</span>
+              {% endif %}
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
