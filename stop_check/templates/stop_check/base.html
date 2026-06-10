@@ -61,7 +61,12 @@
                         <p class="text-xs text-slate-400 truncate">{{ user.profile.get_role_display }}</p>
                     </div>
                 </div>
-                <a href="{% url 'logout' %}" class="block w-full text-center py-2 text-sm text-slate-400 hover:text-white transition">Terminar sessão</a>
+                <form method="post" action="{% url 'logout' %}" class="w-full">
+                    {% csrf_token %}
+                    <button type="submit" class="block w-full text-center py-2 text-sm text-slate-400 hover:text-white transition cursor-pointer">
+                        Terminar sessão
+                    </button>
+                </form>
             </div>
         </aside>
         <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden" onclick="toggleSidebar()"></div>

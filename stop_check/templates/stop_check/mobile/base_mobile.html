@@ -25,7 +25,10 @@
                 <p class="text-xs text-slate-400">StopCheck</p>
                 <h1 class="font-bold text-lg">{{ driver.name }}</h1>
             </div>
-            <a href="{% url 'logout' %}" class="text-sm text-slate-400">Sair</a>
+            <form method="post" action="{% url 'logout' %}" class="inline">
+                {% csrf_token %}
+                <button type="submit" class="text-sm text-slate-400 hover:text-white cursor-pointer">Sair</button>
+            </form>
         </div>
     </header>
     <main class="max-w-lg mx-auto px-4 py-4">

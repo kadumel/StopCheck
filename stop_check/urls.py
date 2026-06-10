@@ -8,7 +8,7 @@ from . import views_payments
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
     path('login/', views.CustomLoginView.as_view(), name='login'),
-    path('logout/', views.LogoutView.as_view(next_page='login'), name='logout'),
+    path('logout/', views.logout_view, name='logout'),
     path('registar/', views.register_view, name='register'),
 
     path('comparacoes/', views.comparison_list, name='comparison_list'),
@@ -26,6 +26,8 @@ urlpatterns = [
 
     path('combustivel/', views.fuel_list, name='fuel_list'),
     path('combustivel/novo/', views.fuel_create, name='fuel_create'),
+    path('combustivel/<int:pk>/editar/', views.fuel_edit, name='fuel_edit'),
+    path('combustivel/<int:pk>/eliminar/', views.fuel_delete, name='fuel_delete'),
 
     path('despesas/', views.expense_list, name='expense_list'),
     path('despesas/nova/', views.expense_create, name='expense_create'),

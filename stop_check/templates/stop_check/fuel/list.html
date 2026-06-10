@@ -24,6 +24,7 @@
                     <th class="px-4 py-3 font-medium">€/L</th>
                     <th class="px-4 py-3 font-medium">Total</th>
                     <th class="px-4 py-3 font-medium">Posto</th>
+                    {% if user.profile.is_admin %}<th class="px-4 py-3 font-medium"></th>{% endif %}
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -35,6 +36,12 @@
                     <td class="px-4 py-3">{{ record.price_per_liter|floatformat:3 }} €</td>
                     <td class="px-4 py-3 font-semibold">{{ record.total_cost|floatformat:2 }} €</td>
                     <td class="px-4 py-3 text-slate-500">{{ record.station|default:"—" }}</td>
+                    {% if user.profile.is_admin %}
+                    <td class="px-4 py-3 text-right space-x-2 whitespace-nowrap">
+                        <a href="{% url 'fuel_edit' record.pk %}" class="text-brand-600 hover:underline">Editar</a>
+                        <a href="{% url 'fuel_delete' record.pk %}" class="text-red-500 hover:underline">Eliminar</a>
+                    </td>
+                    {% endif %}
                 </tr>
                 {% endfor %}
             </tbody>

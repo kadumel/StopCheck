@@ -32,6 +32,16 @@ def manager_required(view_func):
     return wrapper
 
 
+def admin_required(view_func):
+    @wraps(view_func)
+    @organization_required
+    def wrapper(request, *args, **kwargs):
+        if not request.user.profile.is_admin:
+            return redirect(get_home_url_name(request.user))
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
 def driver_required(view_func):
     @wraps(view_func)
     @organization_required

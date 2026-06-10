@@ -4,13 +4,13 @@ from datetime import date
 
 from django.contrib import messages
 from django.contrib.auth import login, logout
-from django.contrib.auth.views import LoginView, LogoutView
+from django.contrib.auth.views import LoginView
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
-from .decorators import get_home_url_name, manager_required, organization_required
+from .decorators import admin_required, get_home_url_name, manager_required, organization_required
 from .forms import (
     DailyComparisonForm,
     DriverForm,
@@ -53,6 +53,11 @@ class CustomLoginView(LoginView):
 
     def get_success_url(self):
         return reverse(get_home_url_name(self.request.user))
+
+
+def logout_view(request):
+    logout(request)
+    return redirect('login')
 
 
 def register_view(request):
@@ -280,6 +285,36 @@ def fuel_create(request):
         form.fields['vehicle'].queryset = Vehicle.objects.filter(organization=org, is_active=True)
         form.fields['driver'].queryset = Driver.objects.filter(organization=org, is_active=True)
     return render(request, 'stop_check/fuel/form.html', {'form': form, 'title': 'Novo Abastecimento'})
+
+
+@admin_required
+def fuel_edit(request, pk):
+    org = request.user.profile.organization
+    record = get_object_or_404(FuelRecord, pk=pk, organization=org)
+    if request.method == 'POST':
+        form = FuelRecordForm(request.POST, instance=record)
+        form.fields['vehicle'].queryset = Vehicle.objects.filter(organization=org, is_active=True)
+        form.fields['driver'].queryset = Driver.objects.filter(organization=org, is_active=True)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Registo de combustível atualizado.')
+            return redirect('fuel_list')
+    else:
+        form = FuelRecordForm(instance=record)
+        form.fields['vehicle'].queryset = Vehicle.objects.filter(organization=org, is_active=True)
+        form.fields['driver'].queryset = Driver.objects.filter(organization=org, is_active=True)
+    return render(request, 'stop_check/fuel/form.html', {'form': form, 'title': 'Editar Abastecimento'})
+
+
+@admin_required
+def fuel_delete(request, pk):
+    org = request.user.profile.organization
+    record = get_object_or_404(FuelRecord, pk=pk, organization=org)
+    if request.method == 'POST':
+        record.delete()
+        messages.success(request, 'Registo de combustível eliminado.')
+        return redirect('fuel_list')
+    return render(request, 'stop_check/fuel/delete.html', {'object': record})
 
 
 @organization_required
