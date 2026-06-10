@@ -25,6 +25,10 @@
         <div class="card"><h3>Total Despesas</h3><p style="color:#dc2626">{{ stats.total_expenses|floatformat:2 }} €</p></div>
         <div class="card"><h3>Lucro Líquido</h3><p>{{ stats.net_profit|floatformat:2 }} €</p></div>
         <div class="card"><h3>Discrepâncias</h3><p>{{ stats.discrepancy_count }}</p></div>
+        <div class="card"><h3>Dif. Stops</h3><p>{% if stats.diff_totals.stops > 0 %}+{% endif %}{{ stats.diff_totals.stops }} <small>({% if stats.diff_amounts.stops > 0 %}+{% endif %}{{ stats.diff_amounts.stops|floatformat:2 }} €)</small></p></div>
+        <div class="card"><h3>Dif. PUDO</h3><p>{% if stats.diff_totals.pudo > 0 %}+{% endif %}{{ stats.diff_totals.pudo }} <small>({% if stats.diff_amounts.pudo > 0 %}+{% endif %}{{ stats.diff_amounts.pudo|floatformat:2 }} €)</small></p></div>
+        <div class="card"><h3>Dif. Recolhas</h3><p>{% if stats.diff_totals.pickups > 0 %}+{% endif %}{{ stats.diff_totals.pickups }} <small>({% if stats.diff_amounts.pickups > 0 %}+{% endif %}{{ stats.diff_amounts.pickups|floatformat:2 }} €)</small></p></div>
+        <div class="card"><h3>Impacto Total Dif.</h3><p>{% if stats.diff_amounts.total > 0 %}+{% endif %}{{ stats.diff_amounts.total|floatformat:2 }} €</p></div>
     </div>
 
     <h2>Comparações Diárias</h2>
@@ -34,18 +38,26 @@
                 <th>Data</th><th>Motorista</th>
                 <th>Stops (M)</th><th>PUDO (M)</th><th>Rec. (M)</th>
                 <th>Stops (E)</th><th>PUDO (E)</th><th>Rec. (E)</th>
-                <th>Dif.</th>
+                <th>Δ Stops</th><th>Δ PUDO</th><th>Δ Rec.</th>
+                <th>€ Stops</th><th>€ PUDO</th><th>€ Rec.</th>
             </tr>
         </thead>
         <tbody>
             {% for comp in stats.comparisons %}
+            {% with da=comp.get_diff_amounts %}
             <tr>
                 <td>{{ comp.date|date:"d/m/Y" }}</td>
                 <td>{{ comp.driver.name }}</td>
                 <td>{{ comp.driver_stops }}</td><td>{{ comp.driver_pudo }}</td><td>{{ comp.driver_pickups }}</td>
                 <td>{{ comp.company_stops }}</td><td>{{ comp.company_pudo }}</td><td>{{ comp.company_pickups }}</td>
-                <td>{% if comp.diff_total > 0 %}+{% endif %}{{ comp.diff_total }}</td>
+                <td>{% if comp.diff_stops > 0 %}+{% endif %}{{ comp.diff_stops }}</td>
+                <td>{% if comp.diff_pudo > 0 %}+{% endif %}{{ comp.diff_pudo }}</td>
+                <td>{% if comp.diff_pickups > 0 %}+{% endif %}{{ comp.diff_pickups }}</td>
+                <td>{{ da.stops|floatformat:2 }}</td>
+                <td>{{ da.pudo|floatformat:2 }}</td>
+                <td>{{ da.pickups|floatformat:2 }}</td>
             </tr>
+            {% endwith %}
             {% endfor %}
         </tbody>
     </table>

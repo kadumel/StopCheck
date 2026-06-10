@@ -2,6 +2,8 @@ from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.models import User
 
+from django.db.models import Q
+
 from .models import (
     DailyComparison,
     DeliveryCompany,
@@ -11,6 +13,7 @@ from .models import (
     FuelRecord,
     Organization,
     RateConfig,
+    Route,
     UserProfile,
     Vehicle,
 )
@@ -162,23 +165,41 @@ class DriverForm(StyledFormMixin, forms.ModelForm):
         driver.save(update_fields=['user'])
 
 
-class DailyComparisonForm(StyledFormMixin, forms.ModelForm):
+class RouteForm(StyledFormMixin, forms.ModelForm):
     class Meta:
-        model = DailyComparison
+        model = Route
         fields = [
-            'driver', 'vehicle', 'date',
-            'driver_stops', 'driver_pudo', 'driver_pickups',
-            'company_stops', 'company_pudo', 'company_pickups',
-            'notes',
+            'name', 'date', 'driver', 'vehicle', 'delivery_company', 'notes', 'is_active',
         ]
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date'}),
             'notes': forms.Textarea(attrs={'rows': 3}),
         }
         labels = {
+            'name': 'Nome / Código da Rota',
+            'date': 'Data',
             'driver': 'Motorista',
             'vehicle': 'Veículo',
-            'date': 'Data',
+            'delivery_company': 'Empresa Contratante',
+            'notes': 'Observações',
+            'is_active': 'Ativa',
+        }
+
+
+class DailyComparisonForm(StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = DailyComparison
+        fields = [
+            'route',
+            'driver_stops', 'driver_pudo', 'driver_pickups',
+            'company_stops', 'company_pudo', 'company_pickups',
+            'notes',
+        ]
+        widgets = {
+            'notes': forms.Textarea(attrs={'rows': 3}),
+        }
+        labels = {
+            'route': 'Rota',
             'driver_stops': 'Paradas (Seus Dados)',
             'driver_pudo': 'PUDO (Seus Dados)',
             'driver_pickups': 'Recolhas (Seus Dados)',
@@ -187,6 +208,28 @@ class DailyComparisonForm(StyledFormMixin, forms.ModelForm):
             'company_pickups': 'Recolhas (Empresa)',
             'notes': 'Observações',
         }
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if organization:
+            routes = Route.objects.filter(organization=organization, is_active=True)
+            if self.instance.pk and self.instance.route_id:
+                routes = routes.filter(
+                    Q(comparison__isnull=True) | Q(pk=self.instance.route_id)
+                )
+            else:
+                routes = routes.filter(comparison__isnull=True)
+            self.fields['route'].queryset = routes.select_related(
+                'driver', 'vehicle'
+            ).order_by('-date', 'name')
+            self.fields['route'].label_from_instance = lambda r: r.label
+
+    def save(self, commit=True):
+        comp = super().save(commit=False)
+        comp.sync_from_route()
+        if commit:
+            comp.save()
+        return comp
 
 
 class FuelRecordForm(StyledFormMixin, forms.ModelForm):

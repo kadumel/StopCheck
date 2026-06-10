@@ -6,14 +6,20 @@
 <h2 class="text-lg font-semibold mb-4">Últimos 30 dias</h2>
 <div class="space-y-3">
     {% for comp in comparisons %}
+    {% with da=comp.get_diff_amounts %}
     <div class="bg-slate-800 rounded-xl p-4 border border-slate-700 {% if comp.has_discrepancy %}border-red-500/50{% endif %}">
         <div class="flex justify-between items-start mb-2">
-            <p class="font-medium">{{ comp.date|date:"d/m/Y" }}</p>
+            <div>
+                <p class="font-medium">{{ comp.date|date:"d/m/Y" }}</p>
+                {% if comp.route %}<p class="text-xs text-slate-500">{{ comp.route.name }}</p>{% endif %}
+            </div>
             {% if comp.has_discrepancy %}
-            <span class="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-300">Dif. {{ comp.diff_total }}</span>
+            <span class="text-xs text-red-300 font-medium">
+                {% if comp.get_diff_revenue_total > 0 %}+{% endif %}{{ comp.get_diff_revenue_total|floatformat:2 }} €
+            </span>
             {% endif %}
         </div>
-        <div class="grid grid-cols-2 gap-2 text-sm">
+        <div class="grid grid-cols-2 gap-2 text-sm mb-3">
             <div>
                 <p class="text-slate-500 text-xs">Seus dados</p>
                 <p class="text-brand-400 font-semibold">{{ comp.driver_stops }} / {{ comp.driver_pudo }} / {{ comp.driver_pickups }}</p>
@@ -23,7 +29,22 @@
                 <p class="text-slate-300">{{ comp.company_stops }} / {{ comp.company_pudo }} / {{ comp.company_pickups }}</p>
             </div>
         </div>
+        <div class="grid grid-cols-3 gap-2 text-center">
+            <div>
+                <p class="text-slate-500 text-xs mb-1">Δ Stops</p>
+                {% include 'stop_check/components/diff_cell.html' with value=comp.diff_stops amount=da.stops %}
+            </div>
+            <div>
+                <p class="text-slate-500 text-xs mb-1">Δ PUDO</p>
+                {% include 'stop_check/components/diff_cell.html' with value=comp.diff_pudo amount=da.pudo %}
+            </div>
+            <div>
+                <p class="text-slate-500 text-xs mb-1">Δ Rec.</p>
+                {% include 'stop_check/components/diff_cell.html' with value=comp.diff_pickups amount=da.pickups %}
+            </div>
+        </div>
     </div>
+    {% endwith %}
     {% empty %}
     <p class="text-slate-500 text-center py-8">Sem histórico ainda.</p>
     {% endfor %}

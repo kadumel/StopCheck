@@ -5,11 +5,12 @@ from datetime import datetime
 
 from django.utils import timezone
 
-from stop_check.models import DailyComparison, Driver, ImportBatch
+from stop_check.models import DailyComparison, Driver, ImportBatch, Route
 
 
 COLUMN_ALIASES = {
     'date': ['data', 'date', 'dia', 'dt'],
+    'route': ['rota', 'route', 'codigo rota', 'código rota', 'servico', 'serviço'],
     'driver': ['motorista', 'driver', 'nome', 'entregador', 'courier', 'colaborador'],
     'stops': ['paradas', 'stops', 'entregas', 'deliveries', 'stop'],
     'pudo': ['pudo', 'ponto pudo', 'pontos pudo', 'locker'],
@@ -155,12 +156,35 @@ def process_import_batch(batch):
             if not driver:
                 raise ValueError(f'Motorista não encontrado: {row.get("driver")}')
 
-            comp, _ = DailyComparison.objects.get_or_create(
+            vehicle = driver.default_vehicle
+            if not vehicle:
+                raise ValueError(f'Motorista sem veículo: {driver.name}')
+
+            route_name = str(row.get('route', '')).strip() or driver.name
+            route, _ = Route.objects.get_or_create(
                 organization=org,
-                driver=driver,
+                name=route_name,
                 date=date_val,
-                defaults={'vehicle': driver.default_vehicle},
+                defaults={
+                    'driver': driver,
+                    'vehicle': vehicle,
+                },
             )
+            if route.driver_id != driver.id:
+                raise ValueError(
+                    f'Rota "{route_name}" em {date_val} já atribuída a outro motorista'
+                )
+
+            comp, _ = DailyComparison.objects.get_or_create(
+                route=route,
+                defaults={
+                    'organization': org,
+                    'driver': driver,
+                    'vehicle': vehicle,
+                    'date': date_val,
+                },
+            )
+            comp.sync_from_route()
             comp.company_stops = _parse_int(row.get('stops'), comp.company_stops)
             comp.company_pudo = _parse_int(row.get('pudo'), comp.company_pudo)
             comp.company_pickups = _parse_int(row.get('pickups'), comp.company_pickups)

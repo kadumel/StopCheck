@@ -65,6 +65,19 @@ def get_dashboard_stats(organization, year, month):
 
     discrepancy_count = sum(1 for c in comparisons if c.has_discrepancy)
 
+    company_stops = totals['company_stops'] or 0
+    company_pudo = totals['company_pudo'] or 0
+    company_pickups = totals['company_pickups'] or 0
+
+    diff_stops = total_stops - company_stops
+    diff_pudo = total_pudo - company_pudo
+    diff_pickups = total_pickups - company_pickups
+
+    diff_amount_stops = Decimal(diff_stops) * rate_config.price_per_stop
+    diff_amount_pudo = Decimal(diff_pudo) * rate_config.price_per_pudo
+    diff_amount_pickups = Decimal(diff_pickups) * rate_config.price_per_pickup
+    diff_amount_total = diff_amount_stops + diff_amount_pudo + diff_amount_pickups
+
     return {
         'days_with_data': days_with_data,
         'avg_stops': round(total_stops / days_with_data, 1) if days_with_data else 0,
@@ -85,8 +98,20 @@ def get_dashboard_stats(organization, year, month):
         'comparisons': comparisons,
         'rate_config': rate_config,
         'company_totals': {
-            'stops': totals['company_stops'] or 0,
-            'pudo': totals['company_pudo'] or 0,
-            'pickups': totals['company_pickups'] or 0,
+            'stops': company_stops,
+            'pudo': company_pudo,
+            'pickups': company_pickups,
+        },
+        'diff_totals': {
+            'stops': diff_stops,
+            'pudo': diff_pudo,
+            'pickups': diff_pickups,
+            'total': diff_stops + diff_pudo + diff_pickups,
+        },
+        'diff_amounts': {
+            'stops': diff_amount_stops,
+            'pudo': diff_amount_pudo,
+            'pickups': diff_amount_pickups,
+            'total': diff_amount_total,
         },
     }

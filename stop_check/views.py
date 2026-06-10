@@ -20,13 +20,16 @@ from .forms import (
     LoginForm,
     RateConfigForm,
     RegisterForm,
+    RouteForm,
     VehicleForm,
 )
 from .models import (
     DailyComparison,
+    DeliveryCompany,
     Driver,
     Expense,
     FuelRecord,
+    Route,
     Subscription,
     Vehicle,
 )
@@ -189,7 +192,7 @@ def comparison_list(request):
     start, end = get_month_range(year, month)
     comparisons = DailyComparison.objects.filter(
         organization=org, date__gte=start, date__lte=end
-    ).select_related('driver', 'vehicle')
+    ).select_related('driver', 'vehicle', 'route')
 
     context = {
         'comparisons': comparisons,
@@ -204,9 +207,7 @@ def comparison_list(request):
 def comparison_create(request):
     org = request.user.profile.organization
     if request.method == 'POST':
-        form = DailyComparisonForm(request.POST)
-        form.fields['driver'].queryset = Driver.objects.filter(organization=org, is_active=True)
-        form.fields['vehicle'].queryset = Vehicle.objects.filter(organization=org, is_active=True)
+        form = DailyComparisonForm(request.POST, organization=org)
         if form.is_valid():
             comp = form.save(commit=False)
             comp.organization = org
@@ -214,9 +215,7 @@ def comparison_create(request):
             messages.success(request, 'Comparação registada com sucesso.')
             return redirect('comparison_list')
     else:
-        form = DailyComparisonForm(initial={'date': timezone.localdate()})
-        form.fields['driver'].queryset = Driver.objects.filter(organization=org, is_active=True)
-        form.fields['vehicle'].queryset = Vehicle.objects.filter(organization=org, is_active=True)
+        form = DailyComparisonForm(organization=org)
     return render(request, 'stop_check/comparisons/form.html', {'form': form, 'title': 'Nova Comparação'})
 
 
@@ -225,17 +224,13 @@ def comparison_edit(request, pk):
     org = request.user.profile.organization
     comp = get_object_or_404(DailyComparison, pk=pk, organization=org)
     if request.method == 'POST':
-        form = DailyComparisonForm(request.POST, instance=comp)
-        form.fields['driver'].queryset = Driver.objects.filter(organization=org, is_active=True)
-        form.fields['vehicle'].queryset = Vehicle.objects.filter(organization=org, is_active=True)
+        form = DailyComparisonForm(request.POST, instance=comp, organization=org)
         if form.is_valid():
             form.save()
             messages.success(request, 'Comparação atualizada.')
             return redirect('comparison_list')
     else:
-        form = DailyComparisonForm(instance=comp)
-        form.fields['driver'].queryset = Driver.objects.filter(organization=org, is_active=True)
-        form.fields['vehicle'].queryset = Vehicle.objects.filter(organization=org, is_active=True)
+        form = DailyComparisonForm(instance=comp, organization=org)
     return render(request, 'stop_check/comparisons/form.html', {'form': form, 'title': 'Editar Comparação'})
 
 
@@ -248,6 +243,78 @@ def comparison_delete(request, pk):
         messages.success(request, 'Comparação eliminada.')
         return redirect('comparison_list')
     return render(request, 'stop_check/comparisons/delete.html', {'object': comp})
+
+
+@manager_required
+def route_list(request):
+    org = request.user.profile.organization
+    year, month = get_period(request)
+    start, end = get_month_range(year, month)
+    routes = Route.objects.filter(
+        organization=org, date__gte=start, date__lte=end
+    ).select_related('driver', 'vehicle', 'delivery_company', 'comparison')
+
+    context = {
+        'routes': routes,
+        'year': year,
+        'month': month,
+        'month_name': MONTHS_PT[month],
+    }
+    return render(request, 'stop_check/routes/list.html', context)
+
+
+@manager_required
+def route_create(request):
+    org = request.user.profile.organization
+    if request.method == 'POST':
+        form = RouteForm(request.POST)
+        form.fields['driver'].queryset = Driver.objects.filter(organization=org, is_active=True)
+        form.fields['vehicle'].queryset = Vehicle.objects.filter(organization=org, is_active=True)
+        form.fields['delivery_company'].queryset = DeliveryCompany.objects.filter(
+            organization=org, is_active=True
+        )
+        if form.is_valid():
+            route = form.save(commit=False)
+            route.organization = org
+            route.save()
+            messages.success(request, 'Rota criada com sucesso.')
+            return redirect('route_list')
+    else:
+        form = RouteForm(initial={'date': timezone.localdate()})
+        form.fields['driver'].queryset = Driver.objects.filter(organization=org, is_active=True)
+        form.fields['vehicle'].queryset = Vehicle.objects.filter(organization=org, is_active=True)
+        form.fields['delivery_company'].queryset = DeliveryCompany.objects.filter(
+            organization=org, is_active=True
+        )
+    return render(request, 'stop_check/routes/form.html', {'form': form, 'title': 'Nova Rota'})
+
+
+@manager_required
+def route_edit(request, pk):
+    org = request.user.profile.organization
+    route = get_object_or_404(Route, pk=pk, organization=org)
+    if request.method == 'POST':
+        form = RouteForm(request.POST, instance=route)
+        form.fields['driver'].queryset = Driver.objects.filter(organization=org, is_active=True)
+        form.fields['vehicle'].queryset = Vehicle.objects.filter(organization=org, is_active=True)
+        form.fields['delivery_company'].queryset = DeliveryCompany.objects.filter(
+            organization=org, is_active=True
+        )
+        if form.is_valid():
+            route = form.save()
+            if hasattr(route, 'comparison'):
+                route.comparison.sync_from_route()
+                route.comparison.save()
+            messages.success(request, 'Rota atualizada.')
+            return redirect('route_list')
+    else:
+        form = RouteForm(instance=route)
+        form.fields['driver'].queryset = Driver.objects.filter(organization=org, is_active=True)
+        form.fields['vehicle'].queryset = Vehicle.objects.filter(organization=org, is_active=True)
+        form.fields['delivery_company'].queryset = DeliveryCompany.objects.filter(
+            organization=org, is_active=True
+        )
+    return render(request, 'stop_check/routes/form.html', {'form': form, 'title': 'Editar Rota'})
 
 
 @organization_required
@@ -516,17 +583,25 @@ def export_excel(request):
     writer.writerow([])
     writer.writerow(['Comparações Diárias'])
     writer.writerow([
-        'Data', 'Motorista', 'Paradas (Motorista)', 'PUDO (Motorista)', 'Recolhas (Motorista)',
-        'Paradas (Empresa)', 'PUDO (Empresa)', 'Recolhas (Empresa)', 'Diferença Total',
+        'Data', 'Motorista',
+        'Paradas (Motorista)', 'PUDO (Motorista)', 'Recolhas (Motorista)',
+        'Paradas (Empresa)', 'PUDO (Empresa)', 'Recolhas (Empresa)',
+        'Dif. Stops', 'Dif. PUDO', 'Dif. Recolhas',
+        '€ Dif. Stops', '€ Dif. PUDO', '€ Dif. Recolhas', '€ Dif. Total',
     ])
     for comp in stats['comparisons']:
+        da = comp.calculate_diff_amounts(stats['rate_config'])
+        diff_eur_total = da['stops'] + da['pudo'] + da['pickups']
         writer.writerow([
             comp.date.strftime('%d/%m/%Y'),
             comp.driver.name,
             comp.driver_stops, comp.driver_pudo, comp.driver_pickups,
             comp.company_stops, comp.company_pudo, comp.company_pickups,
-            comp.diff_total,
+            comp.diff_stops, comp.diff_pudo, comp.diff_pickups,
+            f'{da["stops"]:.2f}', f'{da["pudo"]:.2f}', f'{da["pickups"]:.2f}', f'{diff_eur_total:.2f}',
         ])
+    writer.writerow([])
+    writer.writerow(['Impacto total diferenças (€)', f'{stats["diff_amounts"]["total"]:.2f}'])
 
     return response
 

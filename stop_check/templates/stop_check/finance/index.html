@@ -21,7 +21,28 @@
             <div class="flex justify-between"><dt class="text-slate-500">Stops (Seus / Empresa)</dt><dd><span class="font-semibold text-brand-700">{{ stats.total_stops }}</span> / {{ stats.company_totals.stops }}</dd></div>
             <div class="flex justify-between"><dt class="text-slate-500">PUDO (Seus / Empresa)</dt><dd><span class="font-semibold text-brand-700">{{ stats.total_pudo }}</span> / {{ stats.company_totals.pudo }}</dd></div>
             <div class="flex justify-between"><dt class="text-slate-500">Recolhas (Seus / Empresa)</dt><dd><span class="font-semibold text-brand-700">{{ stats.total_pickups }}</span> / {{ stats.company_totals.pickups }}</dd></div>
-            <div class="border-t pt-3 flex justify-between"><dt class="font-medium text-slate-800">Discrepâncias</dt><dd class="font-bold {% if stats.discrepancy_count > 0 %}text-red-600{% else %}text-emerald-600{% endif %}">{{ stats.discrepancy_count }}</dd></div>
+            <div class="border-t pt-3 mt-1">
+                <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Diferença por serviço</p>
+                <div class="flex justify-between items-center mb-2">
+                    <dt class="text-slate-500">Stops</dt>
+                    <dd>{% include 'stop_check/components/diff_cell.html' with value=stats.diff_totals.stops amount=stats.diff_amounts.stops %}</dd>
+                </div>
+                <div class="flex justify-between items-center mb-2">
+                    <dt class="text-slate-500">PUDO</dt>
+                    <dd>{% include 'stop_check/components/diff_cell.html' with value=stats.diff_totals.pudo amount=stats.diff_amounts.pudo %}</dd>
+                </div>
+                <div class="flex justify-between items-center mb-2">
+                    <dt class="text-slate-500">Recolhas</dt>
+                    <dd>{% include 'stop_check/components/diff_cell.html' with value=stats.diff_totals.pickups amount=stats.diff_amounts.pickups %}</dd>
+                </div>
+                <div class="flex justify-between items-center pt-2 border-t border-slate-100">
+                    <dt class="font-medium text-slate-700">Total em €</dt>
+                    <dd class="font-bold {% if stats.diff_amounts.total > 0 %}text-amber-600{% elif stats.diff_amounts.total < 0 %}text-red-600{% else %}text-slate-500{% endif %}">
+                        {% if stats.diff_amounts.total > 0 %}+{% endif %}{{ stats.diff_amounts.total|floatformat:2 }} €
+                    </dd>
+                </div>
+            </div>
+            <div class="border-t pt-3 flex justify-between"><dt class="font-medium text-slate-800">Dias com discrepância</dt><dd class="font-bold {% if stats.discrepancy_count > 0 %}text-red-600{% else %}text-emerald-600{% endif %}">{{ stats.discrepancy_count }}</dd></div>
         </dl>
     </div>
 </div>

@@ -187,10 +187,48 @@ class Driver(models.Model):
         return self.name
 
 
+class Route(models.Model):
+    """Rota diária: serviço num dia com motorista e veículo específicos."""
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='routes'
+    )
+    name = models.CharField('Nome / Código da Rota', max_length=100)
+    date = models.DateField('Data')
+    driver = models.ForeignKey(
+        Driver, on_delete=models.CASCADE, related_name='routes'
+    )
+    vehicle = models.ForeignKey(
+        Vehicle, on_delete=models.PROTECT, related_name='routes'
+    )
+    delivery_company = models.ForeignKey(
+        'DeliveryCompany', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='routes',
+    )
+    notes = models.TextField('Observações', blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Rota'
+        verbose_name_plural = 'Rotas'
+        ordering = ['-date', 'name']
+        unique_together = ['organization', 'name', 'date']
+
+    def __str__(self):
+        return f'{self.name} — {self.date.strftime("%d/%m/%Y")}'
+
+    @property
+    def label(self):
+        return f'{self.name} ({self.date.strftime("%d/%m/%Y")}) — {self.driver.name} / {self.vehicle.plate}'
+
+
 class DailyComparison(models.Model):
     """Comparativo diário: dados do motorista vs dados reportados pela empresa."""
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name='comparisons'
+    )
+    route = models.OneToOneField(
+        Route, on_delete=models.CASCADE, related_name='comparison', null=True, blank=True
     )
     driver = models.ForeignKey(
         Driver, on_delete=models.CASCADE, related_name='comparisons'
@@ -218,10 +256,18 @@ class DailyComparison(models.Model):
         verbose_name = 'Comparação Diária'
         verbose_name_plural = 'Comparações Diárias'
         ordering = ['-date', '-created_at']
-        unique_together = ['organization', 'driver', 'date']
 
     def __str__(self):
+        if self.route:
+            return f'{self.route.name} — {self.date.strftime("%d/%m/%Y")}'
         return f'{self.driver.name} - {self.date.strftime("%d/%m/%Y")}'
+
+    def sync_from_route(self):
+        if self.route:
+            self.driver = self.route.driver
+            self.vehicle = self.route.vehicle
+            self.date = self.route.date
+            self.organization = self.route.organization
 
     @property
     def driver_total(self):
@@ -249,7 +295,11 @@ class DailyComparison(models.Model):
 
     @property
     def has_discrepancy(self):
-        return self.diff_total != 0
+        return (
+            self.diff_stops != 0
+            or self.diff_pudo != 0
+            or self.diff_pickups != 0
+        )
 
     def calculate_revenue(self, rate_config):
         return (
@@ -257,6 +307,33 @@ class DailyComparison(models.Model):
             + self.driver_pudo * rate_config.price_per_pudo
             + self.driver_pickups * rate_config.price_per_pickup
         )
+
+    def calculate_company_revenue(self, rate_config):
+        return (
+            self.company_stops * rate_config.price_per_stop
+            + self.company_pudo * rate_config.price_per_pudo
+            + self.company_pickups * rate_config.price_per_pickup
+        )
+
+    def calculate_diff_amounts(self, rate_config):
+        """Valor monetário da diferença por tipo (tarifas da assinatura)."""
+        return {
+            'stops': Decimal(self.diff_stops) * rate_config.price_per_stop,
+            'pudo': Decimal(self.diff_pudo) * rate_config.price_per_pudo,
+            'pickups': Decimal(self.diff_pickups) * rate_config.price_per_pickup,
+        }
+
+    def calculate_diff_revenue(self, rate_config):
+        amounts = self.calculate_diff_amounts(rate_config)
+        return amounts['stops'] + amounts['pudo'] + amounts['pickups']
+
+    def get_diff_amounts(self):
+        from .utils import get_or_create_rate_config
+        return self.calculate_diff_amounts(get_or_create_rate_config(self.organization))
+
+    def get_diff_revenue_total(self):
+        amounts = self.get_diff_amounts()
+        return amounts['stops'] + amounts['pudo'] + amounts['pickups']
 
 
 class FuelRecord(models.Model):
@@ -378,6 +455,9 @@ class StopEvent(models.Model):
     )
     vehicle = models.ForeignKey(
         Vehicle, on_delete=models.SET_NULL, null=True, blank=True, related_name='stop_events'
+    )
+    route = models.ForeignKey(
+        Route, on_delete=models.SET_NULL, null=True, blank=True, related_name='stop_events'
     )
     event_type = models.CharField(max_length=10, choices=TYPE_CHOICES)
     recorded_at = models.DateTimeField(default=timezone.now)

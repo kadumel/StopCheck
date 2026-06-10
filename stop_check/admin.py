@@ -13,6 +13,7 @@ from .models import (
     ImportBatch,
     Organization,
     RateConfig,
+    Route,
     StopEvent,
     Subscription,
     UserProfile,
@@ -57,9 +58,16 @@ class DriverAdmin(admin.ModelAdmin):
     list_filter = ['organization', 'is_active']
 
 
+@admin.register(Route)
+class RouteAdmin(admin.ModelAdmin):
+    list_display = ['name', 'date', 'driver', 'vehicle', 'organization', 'is_active']
+    list_filter = ['organization', 'date', 'is_active']
+    date_hierarchy = 'date'
+
+
 @admin.register(DailyComparison)
 class DailyComparisonAdmin(admin.ModelAdmin):
-    list_display = ['date', 'driver', 'driver_total', 'company_total', 'diff_total', 'organization']
+    list_display = ['date', 'route', 'driver', 'driver_total', 'company_total', 'diff_total', 'organization']
     list_filter = ['organization', 'date']
     date_hierarchy = 'date'
 

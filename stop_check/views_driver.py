@@ -5,8 +5,13 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from .decorators import driver_required, get_home_url_name
-from .models import DailyComparison, StopEvent, UserProfile
-from .stop_logging import get_or_create_today_comparison, log_stop_event
+from .models import DailyComparison, StopEvent
+from .stop_logging import (
+    get_or_create_comparison_for_route,
+    get_or_create_today_comparison,
+    get_today_routes,
+    log_stop_event,
+)
 
 
 def _get_driver(request):
@@ -23,14 +28,33 @@ def driver_app(request):
         return redirect('dashboard')
 
     org = request.user.profile.organization
-    comp = get_or_create_today_comparison(org, driver)
+    today_routes = list(get_today_routes(org, driver))
+    route_id = request.GET.get('rota')
+    selected_route = None
+
+    if route_id:
+        selected_route = next((r for r in today_routes if str(r.pk) == route_id), None)
+    elif len(today_routes) == 1:
+        selected_route = today_routes[0]
+
+    comparison = None
+    if selected_route:
+        comparison = get_or_create_comparison_for_route(selected_route)
+    elif not today_routes:
+        messages.warning(
+            request,
+            'Não tem nenhuma rota atribuída para hoje. Contacte o gestor.',
+        )
+
     recent = StopEvent.objects.filter(
-        organization=org, driver=driver
-    ).select_related('vehicle')[:10]
+        organization=org, driver=driver, recorded_at__date=timezone.localdate()
+    ).select_related('vehicle', 'route')[:10]
 
     return render(request, 'stop_check/mobile/app.html', {
         'driver': driver,
-        'comparison': comp,
+        'comparison': comparison,
+        'today_routes': today_routes,
+        'selected_route': selected_route,
         'recent_events': recent,
         'today': timezone.localdate(),
     })
@@ -49,7 +73,17 @@ def driver_log_event(request):
         return JsonResponse({'ok': False, 'error': 'Tipo inválido'}, status=400)
 
     org = request.user.profile.organization
-    comp = log_stop_event(org, driver, event_type)
+    route_id = request.POST.get('route_id')
+    route = None
+    if route_id:
+        route = get_today_routes(org, driver).filter(pk=route_id).first()
+        if not route:
+            return JsonResponse({'ok': False, 'error': 'Rota inválida'}, status=400)
+
+    try:
+        comp = log_stop_event(org, driver, event_type, route=route)
+    except ValueError as exc:
+        return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
 
     return JsonResponse({
         'ok': True,
@@ -66,7 +100,7 @@ def driver_history(request):
     org = request.user.profile.organization
     comparisons = DailyComparison.objects.filter(
         organization=org, driver=driver
-    ).order_by('-date')[:30]
+    ).select_related('route', 'vehicle').order_by('-date')[:30]
     return render(request, 'stop_check/mobile/history.html', {
         'driver': driver,
         'comparisons': comparisons,

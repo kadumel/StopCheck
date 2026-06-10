@@ -26,6 +26,10 @@ urlpatterns = [
     path('motoristas/novo/', views.driver_create, name='driver_create'),
     path('motoristas/<int:pk>/editar/', views.driver_edit, name='driver_edit'),
 
+    path('rotas/', views.route_list, name='route_list'),
+    path('rotas/nova/', views.route_create, name='route_create'),
+    path('rotas/<int:pk>/editar/', views.route_edit, name='route_edit'),
+
     path('combustivel/', views.fuel_list, name='fuel_list'),
     path('combustivel/novo/', views.fuel_create, name='fuel_create'),
     path('combustivel/<int:pk>/editar/', views.fuel_edit, name='fuel_edit'),

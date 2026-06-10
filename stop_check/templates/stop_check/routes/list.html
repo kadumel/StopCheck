@@ -1,0 +1,67 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Rotas — StopCheck{% endblock %}
+
+{% block header %}
+<h2 class="text-lg font-semibold text-slate-800">Rotas — {{ month_name }} {{ year }}</h2>
+{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'route_create' %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">
+    Nova Rota
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    {% if routes %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-50">
+                <tr class="text-left text-slate-500">
+                    <th class="px-4 py-3 font-medium">Data</th>
+                    <th class="px-4 py-3 font-medium">Rota</th>
+                    <th class="px-4 py-3 font-medium">Motorista</th>
+                    <th class="px-4 py-3 font-medium">Veículo</th>
+                    <th class="px-4 py-3 font-medium">Empresa</th>
+                    <th class="px-4 py-3 font-medium">Comparativo</th>
+                    <th class="px-4 py-3 font-medium">Estado</th>
+                    <th class="px-4 py-3 font-medium"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for route in routes %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-4 py-3 font-medium">{{ route.date|date:"d/m/Y" }}</td>
+                    <td class="px-4 py-3 font-medium text-brand-700">{{ route.name }}</td>
+                    <td class="px-4 py-3">{{ route.driver.name }}</td>
+                    <td class="px-4 py-3 text-slate-500">{{ route.vehicle.plate }}</td>
+                    <td class="px-4 py-3 text-slate-500">{{ route.delivery_company.name|default:"—" }}</td>
+                    <td class="px-4 py-3">
+                        {% if route.comparison %}
+                        <span class="text-xs text-brand-600">Registado</span>
+                        {% else %}
+                        <span class="text-xs text-slate-400">Pendente</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 text-xs rounded-full {% if route.is_active %}bg-emerald-100 text-emerald-700{% else %}bg-slate-100 text-slate-500{% endif %}">
+                            {% if route.is_active %}Ativa{% else %}Inativa{% endif %}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-right">
+                        <a href="{% url 'route_edit' route.pk %}" class="text-brand-600 hover:underline">Editar</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16 px-4">
+        <p class="text-slate-500 mb-4">Nenhuma rota atribuída este mês.</p>
+        <a href="{% url 'route_create' %}" class="inline-flex px-6 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition">Criar Rota</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

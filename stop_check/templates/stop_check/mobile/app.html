@@ -3,6 +3,24 @@
 {% block content %}
 <p class="text-slate-400 text-sm mb-4">{{ today|date:"l, d \d\e F \d\e Y" }}</p>
 
+{% if today_routes|length > 1 %}
+<div class="mb-6">
+    <label class="block text-xs text-slate-400 mb-2">Rota de hoje</label>
+    <div class="space-y-2">
+        {% for route in today_routes %}
+        <a href="?rota={{ route.pk }}"
+           class="block px-4 py-3 rounded-xl border {% if selected_route.pk == route.pk %}border-brand-500 bg-brand-900/30{% else %}border-slate-700 bg-slate-800/50{% endif %}">
+            <p class="font-medium text-white">{{ route.name }}</p>
+            <p class="text-xs text-slate-400">{{ route.vehicle.plate }}</p>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% elif selected_route %}
+<p class="text-sm text-slate-400 mb-4">Rota: <span class="text-white font-medium">{{ selected_route.name }}</span> · {{ selected_route.vehicle.plate }}</p>
+{% endif %}
+
+{% if comparison %}
 <div class="grid grid-cols-3 gap-3 mb-6">
     <div class="bg-slate-800 rounded-2xl p-4 text-center border border-slate-700">
         <p class="text-3xl font-bold text-brand-400" id="count-stops">{{ comparison.driver_stops }}</p>
@@ -19,21 +37,44 @@
 </div>
 
 <div class="space-y-3 mb-8">
-    <button type="button" data-type="stop" class="tap-btn w-full py-6 rounded-2xl bg-brand-600 hover:bg-brand-500 font-bold text-xl shadow-lg shadow-brand-900/50 log-btn">
+    <button type="button" data-type="stop" class="tap-btn w-full py-6 rounded-2xl bg-brand-600 hover:bg-brand-500 font-bold text-xl shadow-lg shadow-brand-900/50 log-btn" {% if not comparison %}disabled{% endif %}>
         + Parada
     </button>
-    <button type="button" data-type="pudo" class="tap-btn w-full py-5 rounded-2xl bg-slate-700 hover:bg-slate-600 font-semibold text-lg log-btn">
+    <button type="button" data-type="pudo" class="tap-btn w-full py-5 rounded-2xl bg-slate-700 hover:bg-slate-600 font-semibold text-lg log-btn" {% if not comparison %}disabled{% endif %}>
         + Ponto PUDO
     </button>
-    <button type="button" data-type="pickup" class="tap-btn w-full py-5 rounded-2xl bg-slate-700 hover:bg-slate-600 font-semibold text-lg log-btn">
+    <button type="button" data-type="pickup" class="tap-btn w-full py-5 rounded-2xl bg-slate-700 hover:bg-slate-600 font-semibold text-lg log-btn" {% if not comparison %}disabled{% endif %}>
         + Recolha
     </button>
 </div>
 
 {% if comparison.has_discrepancy or comparison.company_total > 0 %}
+{% with da=comparison.get_diff_amounts %}
 <div class="bg-amber-900/30 border border-amber-700/50 rounded-xl p-4 mb-6">
-    <p class="text-amber-300 text-sm font-medium">Comparativo com empresa</p>
-    <p class="text-xs text-amber-400/80 mt-1">Empresa reporta: {{ comparison.company_stops }}/{{ comparison.company_pudo }}/{{ comparison.company_pickups }}</p>
+    <p class="text-amber-300 text-sm font-medium mb-2">Comparativo com empresa</p>
+    <div class="grid grid-cols-3 gap-2 text-center text-xs">
+        <div>
+            <p class="text-amber-400/70 mb-1">Stops</p>
+            <p class="text-white mb-1">{{ comparison.driver_stops }} / {{ comparison.company_stops }}</p>
+            {% include 'stop_check/components/diff_cell.html' with value=comparison.diff_stops amount=da.stops %}
+        </div>
+        <div>
+            <p class="text-amber-400/70 mb-1">PUDO</p>
+            <p class="text-white mb-1">{{ comparison.driver_pudo }} / {{ comparison.company_pudo }}</p>
+            {% include 'stop_check/components/diff_cell.html' with value=comparison.diff_pudo amount=da.pudo %}
+        </div>
+        <div>
+            <p class="text-amber-400/70 mb-1">Recolhas</p>
+            <p class="text-white mb-1">{{ comparison.driver_pickups }} / {{ comparison.company_pickups }}</p>
+            {% include 'stop_check/components/diff_cell.html' with value=comparison.diff_pickups amount=da.pickups %}
+        </div>
+    </div>
+</div>
+{% endwith %}
+{% endif %}
+{% else %}
+<div class="bg-slate-800 rounded-2xl p-6 text-center border border-slate-700 mb-6">
+    <p class="text-slate-400">Selecione uma rota para começar a registar paradas.</p>
 </div>
 {% endif %}
 
@@ -58,6 +99,7 @@ document.querySelectorAll('.log-btn').forEach(btn => {
         btn.disabled = true;
         const fd = new FormData();
         fd.append('event_type', btn.dataset.type);
+        {% if selected_route %}fd.append('route_id', '{{ selected_route.pk }}');{% endif %}
         try {
             const res = await fetch('{% url "driver_log_event" %}', {
                 method: 'POST',
@@ -65,6 +107,9 @@ document.querySelectorAll('.log-btn').forEach(btn => {
                 body: fd,
             });
             const data = await res.json();
+            if (!data.ok && data.error) {
+                alert(data.error);
+            }
             if (data.ok) {
                 document.getElementById('count-stops').textContent = data.stops;
                 document.getElementById('count-pudo').textContent = data.pudo;

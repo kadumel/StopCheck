@@ -20,38 +20,51 @@
             <thead class="bg-slate-50">
                 <tr class="text-left text-slate-500">
                     <th class="px-4 py-3 font-medium">Data</th>
+                    <th class="px-4 py-3 font-medium">Rota</th>
                     <th class="px-4 py-3 font-medium">Motorista</th>
                     <th class="px-4 py-3 font-medium">Veículo</th>
-                    <th class="px-4 py-3 font-medium text-center">Seus Dados</th>
-                    <th class="px-4 py-3 font-medium text-center">Empresa</th>
-                    <th class="px-4 py-3 font-medium text-center">Diferença</th>
+                    <th class="px-4 py-3 font-medium text-center" colspan="3">Seus Dados</th>
+                    <th class="px-4 py-3 font-medium text-center" colspan="3">Empresa</th>
+                    <th class="px-4 py-3 font-medium text-center" colspan="3">Diferença</th>
                     <th class="px-4 py-3 font-medium"></th>
+                </tr>
+                <tr class="text-xs text-slate-400 bg-slate-50">
+                    <th colspan="4"></th>
+                    <th class="px-2 py-2 text-center">Stops</th>
+                    <th class="px-2 py-2 text-center">PUDO</th>
+                    <th class="px-2 py-2 text-center">Rec.</th>
+                    <th class="px-2 py-2 text-center">Stops</th>
+                    <th class="px-2 py-2 text-center">PUDO</th>
+                    <th class="px-2 py-2 text-center">Rec.</th>
+                    <th class="px-2 py-2 text-center">Stops</th>
+                    <th class="px-2 py-2 text-center">PUDO</th>
+                    <th class="px-2 py-2 text-center">Rec.</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
                 {% for comp in comparisons %}
+                {% with da=comp.get_diff_amounts %}
                 <tr class="hover:bg-slate-50 {% if comp.has_discrepancy %}bg-red-50/30{% endif %}">
                     <td class="px-4 py-3 font-medium">{{ comp.date|date:"d/m/Y" }}</td>
+                    <td class="px-4 py-3 font-medium text-brand-700">{{ comp.route.name|default:"—" }}</td>
                     <td class="px-4 py-3">{{ comp.driver.name }}</td>
                     <td class="px-4 py-3 text-slate-500">{{ comp.vehicle.plate|default:"—" }}</td>
-                    <td class="px-4 py-3 text-center">
-                        <span class="font-semibold text-brand-700">{{ comp.driver_stops }}</span> /
-                        <span class="font-semibold text-brand-700">{{ comp.driver_pudo }}</span> /
-                        <span class="font-semibold text-brand-700">{{ comp.driver_pickups }}</span>
-                    </td>
-                    <td class="px-4 py-3 text-center text-slate-600">
-                        {{ comp.company_stops }} / {{ comp.company_pudo }} / {{ comp.company_pickups }}
-                    </td>
-                    <td class="px-4 py-3 text-center">
-                        <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-bold {% if comp.diff_total > 0 %}bg-emerald-100 text-emerald-700{% elif comp.diff_total < 0 %}bg-red-100 text-red-700{% else %}bg-slate-100 text-slate-600{% endif %}">
-                            {% if comp.diff_total > 0 %}+{% endif %}{{ comp.diff_total }}
-                        </span>
-                    </td>
-                    <td class="px-4 py-3 text-right space-x-2">
+                    <td class="px-2 py-3 text-center font-semibold text-brand-700">{{ comp.driver_stops }}</td>
+                    <td class="px-2 py-3 text-center font-semibold text-brand-700">{{ comp.driver_pudo }}</td>
+                    <td class="px-2 py-3 text-center font-semibold text-brand-700">{{ comp.driver_pickups }}</td>
+                    <td class="px-2 py-3 text-center text-slate-600">{{ comp.company_stops }}</td>
+                    <td class="px-2 py-3 text-center text-slate-600">{{ comp.company_pudo }}</td>
+                    <td class="px-2 py-3 text-center text-slate-600">{{ comp.company_pickups }}</td>
+                    <td class="px-2 py-3 text-center">{% include 'stop_check/components/diff_cell.html' with value=comp.diff_stops amount=da.stops %}</td>
+                    <td class="px-2 py-3 text-center">{% include 'stop_check/components/diff_cell.html' with value=comp.diff_pudo amount=da.pudo %}</td>
+                    <td class="px-2 py-3 text-center">{% include 'stop_check/components/diff_cell.html' with value=comp.diff_pickups amount=da.pickups %}</td>
+                    <td class="px-4 py-3 text-right space-x-2 whitespace-nowrap">
                         <a href="{% url 'comparison_edit' comp.pk %}" class="text-brand-600 hover:underline">Editar</a>
                         <a href="{% url 'comparison_delete' comp.pk %}" class="text-red-500 hover:underline">Eliminar</a>
                     </td>
                 </tr>
+                {% endwith %}
                 {% endfor %}
             </tbody>
         </table>
