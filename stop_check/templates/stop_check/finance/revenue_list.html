@@ -1,0 +1,118 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Receitas — StopCheck{% endblock %}
+
+{% block header %}
+<div class="flex items-center gap-3">
+    <a href="?year={{ prev_year }}&month={{ prev_month }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}" class="p-2 rounded-lg hover:bg-slate-100 text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <h2 class="text-lg font-semibold text-slate-800">Receitas — {{ month_name }} {{ year }}</h2>
+    <a href="?year={{ next_year }}&month={{ next_month }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}" class="p-2 rounded-lg hover:bg-slate-100 text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </a>
+</div>
+{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'revenue_create' %}?year={{ year }}&month={{ month }}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">Nova Receita</a>
+{% endblock %}
+
+{% block content %}
+<form method="get" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-4">
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="month" value="{{ month }}">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+        <div>
+            <label for="filter-conta" class="block text-xs font-medium text-slate-600 mb-1">Plano de conta</label>
+            <select id="filter-conta" name="conta" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                <option value="">Todos</option>
+                {% for account in revenue_accounts %}
+                <option value="{{ account.pk }}" {% if filters.conta == account.pk|stringformat:"s" %}selected{% endif %}>{{ account.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="filter-veiculo" class="block text-xs font-medium text-slate-600 mb-1">Veículo</label>
+            <select id="filter-veiculo" name="veiculo" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                <option value="">Todos</option>
+                {% for vehicle in vehicles %}
+                <option value="{{ vehicle.pk }}" {% if filters.veiculo == vehicle.pk|stringformat:"s" %}selected{% endif %}>{{ vehicle.plate }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="filter-dia" class="block text-xs font-medium text-slate-600 mb-1">Dia</label>
+            <input type="date" id="filter-dia" name="dia" value="{{ filters.dia }}"
+                   class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="flex-1 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">
+                Filtrar
+            </button>
+            <a href="?year={{ year }}&month={{ month }}" class="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition">
+                Limpar
+            </a>
+        </div>
+    </div>
+</form>
+
+<div class="bg-emerald-50 border border-emerald-100 rounded-xl p-4 mb-6">
+    <p class="text-sm text-emerald-700">
+        Total{% if has_filters %} (filtrado){% endif %}: <span class="font-bold text-lg">{{ total|floatformat:2 }} €</span>
+        {% if revenues %} · {{ revenues|length }} registo(s){% endif %}
+    </p>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    {% if revenues %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-50">
+                <tr class="text-left text-slate-500">
+                    <th class="px-4 py-3 font-medium">Data</th>
+                    <th class="px-4 py-3 font-medium">Descrição</th>
+                    <th class="px-4 py-3 font-medium">Plano de conta</th>
+                    <th class="px-4 py-3 font-medium">Veículo</th>
+                    <th class="px-4 py-3 font-medium">Valor</th>
+                    <th class="px-4 py-3 font-medium text-center">Ações</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for revenue in revenues %}
+                <tr class="hover:bg-slate-50">
+                    <td class="px-4 py-3">{{ revenue.date|date:"d/m/Y" }}</td>
+                    <td class="px-4 py-3 font-medium">{{ revenue.description }}</td>
+                    <td class="px-4 py-3">
+                        {% if revenue.account %}
+                        <span class="px-2 py-0.5 text-xs rounded-full" style="background-color: {{ revenue.account.color }}20; color: {{ revenue.account.color }}">{{ revenue.account.name }}</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-slate-500">{{ revenue.display_vehicle.plate|default:"—" }}</td>
+                    <td class="px-4 py-3 font-semibold text-emerald-700">{{ revenue.amount|floatformat:2 }} €</td>
+                    <td class="px-4 py-3 text-center whitespace-nowrap space-x-2">
+                        {% if revenue.is_manual %}
+                        <a href="{% url 'revenue_edit' revenue.pk %}?year={{ year }}&month={{ month }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}" class="text-brand-600 hover:underline">Editar</a>
+                        {% else %}
+                        <a href="{% url 'comparison_edit' revenue.comparison.pk %}?year={{ year }}&month={{ month }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}" class="text-brand-600 hover:underline">Editar</a>
+                        {% endif %}
+                        <a href="{% url 'revenue_delete' revenue.pk %}?year={{ year }}&month={{ month }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}" class="text-red-600 hover:underline">Eliminar</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16">
+        {% if has_filters %}
+        <p class="text-slate-500 mb-4">Nenhuma receita encontrada com os filtros seleccionados.</p>
+        <a href="?year={{ year }}&month={{ month }}" class="inline-flex px-6 py-3 text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition">Limpar filtros</a>
+        {% else %}
+        <p class="text-slate-500 mb-4">Sem receitas registadas este mês.</p>
+        <a href="{% url 'revenue_create' %}?year={{ year }}&month={{ month }}" class="inline-flex px-6 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition">Registar Receita</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

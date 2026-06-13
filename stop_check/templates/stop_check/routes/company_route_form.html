@@ -1,0 +1,76 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}{{ title }} — StopCheck{% endblock %}
+
+{% block header %}<h2 class="text-lg font-semibold text-slate-800">{{ title }}</h2>{% endblock %}
+
+{% block content %}
+<div class="max-w-lg">
+    <p class="text-sm text-slate-500 mb-4">
+        Defina o código da rota, o plano de conta de receita e as tarifas contratadas com a empresa.
+        À medida que registar produtividade, a receita será criada automaticamente no financeiro.
+    </p>
+    <form method="post" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
+        {% csrf_token %}
+
+        <div class="space-y-4">
+            <h3 class="text-sm font-semibold text-slate-700">Identificação</h3>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ form.delivery_company.label }}</label>
+                {{ form.delivery_company }}
+                {% if form.delivery_company.errors %}<p class="text-red-500 text-xs mt-1">{{ form.delivery_company.errors.0 }}</p>{% endif %}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ form.name.label }}</label>
+                {{ form.name }}
+                {% if form.name.errors %}<p class="text-red-500 text-xs mt-1">{{ form.name.errors.0 }}</p>{% endif %}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ form.revenue_account.label }}</label>
+                {{ form.revenue_account }}
+                <p class="text-xs text-slate-500 mt-1">Plano de conta do tipo Receita usado ao lançar produtividade desta rota.</p>
+                {% if form.revenue_account.errors %}<p class="text-red-500 text-xs mt-1">{{ form.revenue_account.errors.0 }}</p>{% endif %}
+            </div>
+        </div>
+
+        <div class="space-y-4 p-4 rounded-lg bg-brand-50 border border-brand-100">
+            <h3 class="text-sm font-semibold text-brand-800">Tarifas da Rota</h3>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-brand-700 mb-1">{{ form.price_per_stop.label }}</label>
+                    {{ form.price_per_stop }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-brand-700 mb-1">{{ form.price_per_pudo.label }}</label>
+                    {{ form.price_per_pudo }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-brand-700 mb-1">{{ form.price_per_pickup.label }}</label>
+                    {{ form.price_per_pickup }}
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-brand-700 mb-1">{{ form.daily_rate.label }}</label>
+                    {{ form.daily_rate }}
+                </div>
+            </div>
+            <p class="text-xs text-brand-700/70">Valores usados no cálculo de receita e comparativos desta rota.</p>
+        </div>
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ form.notes.label }}</label>
+                {{ form.notes }}
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ form.is_active.label }}</label>
+                {{ form.is_active }}
+            </div>
+        </div>
+
+        <div class="flex gap-3 pt-2">
+            <button type="submit" class="px-6 py-2.5 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition">Guardar</button>
+            <a href="{% url 'route_list' %}" class="px-6 py-2.5 text-slate-600 rounded-lg hover:bg-slate-100 transition">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

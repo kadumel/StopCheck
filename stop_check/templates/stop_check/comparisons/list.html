@@ -3,33 +3,149 @@
 {% block title %}Comparações — StopCheck{% endblock %}
 
 {% block header %}
-<h2 class="text-lg font-semibold text-slate-800">Comparações — {{ month_name }} {{ year }}</h2>
+<div class="flex items-center gap-3">
+    <a href="?year={{ prev_year }}&month={{ prev_month }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}" class="p-2 rounded-lg hover:bg-slate-100 text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <h2 class="text-lg font-semibold text-slate-800">Comparações — {{ month_name }} {{ year }}</h2>
+    <a href="?year={{ next_year }}&month={{ next_month }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}" class="p-2 rounded-lg hover:bg-slate-100 text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </a>
+</div>
 {% endblock %}
 
 {% block header_actions %}
-<a href="{% url 'comparison_create' %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">
-    Nova Comparação
+<a href="{% url 'production_list' %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">
+    Atribuir Rota
 </a>
 {% endblock %}
 
 {% block content %}
+<p class="text-sm text-slate-500 mb-4">
+    Comparativos motorista vs empresa, criados automaticamente ao atribuir rotas em
+    <a href="{% url 'production_list' %}" class="text-brand-600 hover:underline">Produção</a>.
+    Seleccione os dias e use <strong>Digitação rápida</strong> para preencher campo a campo.
+</p>
+
+<form method="get" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-4">
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="month" value="{{ month }}">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+        <div>
+            <label for="filter-rota" class="block text-xs font-medium text-slate-600 mb-1">Rota</label>
+            <select id="filter-rota" name="rota" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                <option value="">Todas</option>
+                {% for cr in company_routes %}
+                <option value="{{ cr.pk }}" {% if filters.rota == cr.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ cr.delivery_company.name }} — {{ cr.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="filter-motorista" class="block text-xs font-medium text-slate-600 mb-1">Motorista</label>
+            <select id="filter-motorista" name="motorista" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                <option value="">Todos</option>
+                {% for driver in drivers %}
+                <option value="{{ driver.pk }}" {% if filters.motorista == driver.pk|stringformat:"s" %}selected{% endif %}>{{ driver.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="filter-veiculo" class="block text-xs font-medium text-slate-600 mb-1">Veículo</label>
+            <select id="filter-veiculo" name="veiculo" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                <option value="">Todos</option>
+                {% for vehicle in vehicles %}
+                <option value="{{ vehicle.pk }}" {% if filters.veiculo == vehicle.pk|stringformat:"s" %}selected{% endif %}>{{ vehicle.plate }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="filter-status" class="block text-xs font-medium text-slate-600 mb-1">Estado</label>
+            <select id="filter-status" name="status" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                <option value="">Todos</option>
+                <option value="driver_pending" {% if filters.status == 'driver_pending' %}selected{% endif %}>Meus dados pendentes</option>
+                <option value="company_pending" {% if filters.status == 'company_pending' %}selected{% endif %}>Dados empresa pendentes</option>
+                <option value="any_pending" {% if filters.status == 'any_pending' %}selected{% endif %}>Qualquer pendente</option>
+                <option value="complete" {% if filters.status == 'complete' %}selected{% endif %}>Completos</option>
+            </select>
+        </div>
+        <div>
+            <label for="filter-dia" class="block text-xs font-medium text-slate-600 mb-1">Dia</label>
+            <input type="date" id="filter-dia" name="dia" value="{{ filters.dia }}"
+                   class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="flex-1 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">
+                Filtrar
+            </button>
+            <a href="?year={{ year }}&month={{ month }}" class="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition">
+                Limpar
+            </a>
+        </div>
+    </div>
+</form>
+
+{% if comparisons %}
+<form method="post" action="{% url 'comparison_bulk_entry' %}" id="bulk-launch-form">
+    {% csrf_token %}
+    <input type="hidden" name="launch" value="1">
+    <input type="hidden" name="tipo" id="bulk-tipo" value="driver">
+    <input type="hidden" name="return_query" value="year={{ year }}&month={{ month }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}">
+{% endif %}
+
 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
     {% if comparisons %}
+    <div class="px-4 py-3 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-3">
+            <span class="text-xs text-slate-500">
+                {{ comparisons|length }} comparaç{{ comparisons|length|pluralize:"ão,ões" }}
+                {% if has_filters %} (filtrado){% endif %}
+            </span>
+            <label class="inline-flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                <input type="checkbox" id="select-all-rows" class="w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500">
+                Seleccionar todos
+            </label>
+            <button type="button" id="select-pending-driver" class="text-xs text-brand-600 hover:underline">
+                Pendentes (meus dados)
+            </button>
+            <button type="button" id="select-pending-company" class="text-xs text-brand-600 hover:underline">
+                Pendentes (empresa)
+            </button>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <button type="submit" id="btn-bulk-driver" disabled
+                    onclick="document.getElementById('bulk-tipo').value='driver'"
+                    class="px-3 py-1.5 text-xs font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                Digitar meus dados
+            </button>
+            <button type="submit" id="btn-bulk-company" disabled
+                    onclick="document.getElementById('bulk-tipo').value='company'"
+                    class="px-3 py-1.5 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                Digitar dados empresa
+            </button>
+        </div>
+    </div>
     <div class="overflow-x-auto">
         <table class="w-full text-sm">
             <thead class="bg-slate-50">
                 <tr class="text-left text-slate-500">
+                    <th class="px-4 py-3 w-10"></th>
                     <th class="px-4 py-3 font-medium">Data</th>
                     <th class="px-4 py-3 font-medium">Rota</th>
                     <th class="px-4 py-3 font-medium">Motorista</th>
                     <th class="px-4 py-3 font-medium">Veículo</th>
+                    <th class="px-4 py-3 font-medium text-center" colspan="2">Estado dos dados</th>
                     <th class="px-4 py-3 font-medium text-center" colspan="3">Seus Dados</th>
                     <th class="px-4 py-3 font-medium text-center" colspan="3">Empresa</th>
                     <th class="px-4 py-3 font-medium text-center" colspan="3">Diferença</th>
-                    <th class="px-4 py-3 font-medium"></th>
+                    <th class="px-4 py-3 font-medium text-center">Ações</th>
                 </tr>
                 <tr class="text-xs text-slate-400 bg-slate-50">
+                    <th></th>
                     <th colspan="4"></th>
+                    <th class="px-2 py-2">Motorista</th>
+                    <th class="px-2 py-2">Empresa</th>
                     <th class="px-2 py-2 text-center">Stops</th>
                     <th class="px-2 py-2 text-center">PUDO</th>
                     <th class="px-2 py-2 text-center">Rec.</th>
@@ -45,11 +161,26 @@
             <tbody class="divide-y divide-slate-100">
                 {% for comp in comparisons %}
                 {% with da=comp.get_diff_amounts %}
-                <tr class="hover:bg-slate-50 {% if comp.has_discrepancy %}bg-red-50/30{% endif %}">
+                <tr class="hover:bg-slate-50 {% if comp.has_discrepancy %}bg-red-50/30{% endif %}"
+                    data-driver-pending="{% if comp.driver_data_status == 'pending' %}1{% else %}0{% endif %}"
+                    data-company-pending="{% if comp.company_data_status == 'pending' %}1{% else %}0{% endif %}">
+                    <td class="px-4 py-3">
+                        <input type="checkbox" name="selected" value="{{ comp.pk }}"
+                               class="row-checkbox w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500">
+                    </td>
                     <td class="px-4 py-3 font-medium">{{ comp.date|date:"d/m/Y" }}</td>
                     <td class="px-4 py-3 font-medium text-brand-700">{{ comp.route.name|default:"—" }}</td>
                     <td class="px-4 py-3">{{ comp.driver.name }}</td>
                     <td class="px-4 py-3 text-slate-500">{{ comp.vehicle.plate|default:"—" }}</td>
+                    <td class="px-2 py-3">
+                        {% include 'stop_check/components/data_status_badge.html' with status=comp.driver_data_status label=comp.get_driver_data_status_display %}
+                        {% if comp.driver_data_locked %}
+                        <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-700" title="Motorista concluiu o registo">Bloqueado</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-2 py-3">
+                        {% include 'stop_check/components/data_status_badge.html' with status=comp.company_data_status label=comp.get_company_data_status_display %}
+                    </td>
                     <td class="px-2 py-3 text-center font-semibold text-brand-700">{{ comp.driver_stops }}</td>
                     <td class="px-2 py-3 text-center font-semibold text-brand-700">{{ comp.driver_pudo }}</td>
                     <td class="px-2 py-3 text-center font-semibold text-brand-700">{{ comp.driver_pickups }}</td>
@@ -59,9 +190,26 @@
                     <td class="px-2 py-3 text-center">{% include 'stop_check/components/diff_cell.html' with value=comp.diff_stops amount=da.stops %}</td>
                     <td class="px-2 py-3 text-center">{% include 'stop_check/components/diff_cell.html' with value=comp.diff_pudo amount=da.pudo %}</td>
                     <td class="px-2 py-3 text-center">{% include 'stop_check/components/diff_cell.html' with value=comp.diff_pickups amount=da.pickups %}</td>
-                    <td class="px-4 py-3 text-right space-x-2 whitespace-nowrap">
+                    <td class="px-4 py-3 text-center whitespace-nowrap">
                         <a href="{% url 'comparison_edit' comp.pk %}" class="text-brand-600 hover:underline">Editar</a>
-                        <a href="{% url 'comparison_delete' comp.pk %}" class="text-red-500 hover:underline">Eliminar</a>
+                        {% if user.profile.is_manager and comp.driver_data_locked %}
+                        <span class="text-slate-300 mx-1">·</span>
+                        <button type="submit"
+                                formaction="{% url 'comparison_unlock_driver' comp.pk %}"
+                                formmethod="post"
+                                onclick="return confirm('Libertar edição dos dados do motorista para {{ comp.date|date:"d/m/Y" }}?')"
+                                class="text-amber-700 hover:text-amber-900 hover:underline cursor-pointer bg-transparent border-0 p-0 text-sm font-normal">
+                            Libertar motorista
+                        </button>
+                        {% endif %}
+                        <span class="text-slate-300 mx-1">·</span>
+                        <button type="submit"
+                                formaction="{% url 'comparison_clear' comp.pk %}"
+                                formmethod="post"
+                                onclick="return confirm('Tem a certeza que deseja limpar todos os dados deste dia?\n\nSerão zerados os seus dados e os dados da empresa (stops, PUDO e recolhas).')"
+                                class="text-red-600 hover:text-red-800 hover:underline cursor-pointer bg-transparent border-0 p-0 text-sm font-normal">
+                            Limpar
+                        </button>
                     </td>
                 </tr>
                 {% endwith %}
@@ -71,9 +219,66 @@
     </div>
     {% else %}
     <div class="text-center py-16 px-4">
-        <p class="text-slate-500 mb-4">Sem comparações registadas este mês.</p>
-        <a href="{% url 'comparison_create' %}" class="inline-flex px-6 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition">Criar Comparação</a>
+        {% if has_filters %}
+        <p class="text-slate-500 mb-4">Nenhuma comparação encontrada com os filtros seleccionados.</p>
+        <a href="?year={{ year }}&month={{ month }}" class="inline-flex px-6 py-3 text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition">Limpar filtros</a>
+        {% else %}
+        <p class="text-slate-500 mb-4">Sem comparações em {{ month_name }} {{ year }}. Atribua rotas em Produção para gerar comparativos.</p>
+        <a href="{% url 'production_list' %}" class="inline-flex px-6 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition">Ir para Produção</a>
+        {% endif %}
     </div>
     {% endif %}
 </div>
+
+{% if comparisons %}
+</form>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const checkboxes = Array.from(document.querySelectorAll('.row-checkbox'));
+    const selectAll = document.getElementById('select-all-rows');
+    const btnDriver = document.getElementById('btn-bulk-driver');
+    const btnCompany = document.getElementById('btn-bulk-company');
+    if (!checkboxes.length) return;
+
+    function updateButtons() {
+        const n = checkboxes.filter(c => c.checked).length;
+        const disabled = n === 0;
+        btnDriver.disabled = disabled;
+        btnCompany.disabled = disabled;
+    }
+
+    checkboxes.forEach(cb => cb.addEventListener('change', updateButtons));
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function() {
+            checkboxes.forEach(cb => { cb.checked = selectAll.checked; });
+            updateButtons();
+        });
+    }
+
+    document.getElementById('select-pending-driver')?.addEventListener('click', function() {
+        checkboxes.forEach(cb => {
+            const row = cb.closest('tr');
+            cb.checked = row?.dataset.driverPending === '1';
+        });
+        if (selectAll) selectAll.checked = false;
+        updateButtons();
+    });
+
+    document.getElementById('select-pending-company')?.addEventListener('click', function() {
+        checkboxes.forEach(cb => {
+            const row = cb.closest('tr');
+            cb.checked = row?.dataset.companyPending === '1';
+        });
+        if (selectAll) selectAll.checked = false;
+        updateButtons();
+    });
+
+    updateButtons();
+})();
+</script>
 {% endblock %}

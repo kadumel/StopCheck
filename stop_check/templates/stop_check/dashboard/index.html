@@ -78,12 +78,10 @@
         <div class="flex flex-wrap items-center justify-between gap-3">
             <div>
                 <p class="text-sm font-medium {% if stats.diff_amounts.total > 0 %}text-amber-800{% else %}text-red-800{% endif %}">
-                    Impacto financeiro das diferenças (tarifas da assinatura)
+                    Impacto financeiro das diferenças (tarifas por rota)
                 </p>
                 <p class="text-xs text-slate-500 mt-1">
-                    Stops {{ stats.rate_config.price_per_stop|floatformat:2 }} € ·
-                    PUDO {{ stats.rate_config.price_per_pudo|floatformat:2 }} € ·
-                    Recolha {{ stats.rate_config.price_per_pickup|floatformat:2 }} €
+                    Valores calculados com as tarifas definidas em cada rota.
                 </p>
             </div>
             <p class="text-2xl font-bold {% if stats.diff_amounts.total > 0 %}text-amber-700{% else %}text-red-700{% endif %}">

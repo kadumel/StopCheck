@@ -8,13 +8,35 @@
 <div class="max-w-lg">
     <form method="post" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
         {% csrf_token %}
+
         {% for field in form %}
+        {% if field.name != 'create_account' and field.name != 'is_active' %}
         <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">{{ field.label }}</label>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
             {{ field }}
+            {% if field.help_text %}<p class="text-xs text-slate-500 mt-1">{{ field.help_text }}</p>{% endif %}
             {% if field.errors %}<p class="text-red-500 text-xs mt-1">{{ field.errors.0 }}</p>{% endif %}
         </div>
+        {% endif %}
         {% endfor %}
+
+        <div class="flex flex-wrap items-center gap-6 pt-1">
+            <label class="inline-flex items-center gap-2 cursor-pointer">
+                {{ form.create_account }}
+                <span class="text-sm text-slate-700">{{ form.create_account.label }}</span>
+            </label>
+            <label class="inline-flex items-center gap-2 cursor-pointer">
+                {{ form.is_active }}
+                <span class="text-sm text-slate-700">{{ form.is_active.label }}</span>
+            </label>
+        </div>
+        {% if form.create_account.errors %}<p class="text-red-500 text-xs">{{ form.create_account.errors.0 }}</p>{% endif %}
+        {% if form.is_active.errors %}<p class="text-red-500 text-xs">{{ form.is_active.errors.0 }}</p>{% endif %}
+
+        <p class="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+            O login na app do motorista usa o <strong>NIF</strong> como utilizador.
+        </p>
+
         <div class="flex gap-3 pt-2">
             <button type="submit" class="px-6 py-2.5 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition">Guardar</button>
             <a href="{% url 'driver_list' %}" class="px-6 py-2.5 text-slate-600 rounded-lg hover:bg-slate-100 transition">Cancelar</a>

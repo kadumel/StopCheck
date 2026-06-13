@@ -7,8 +7,11 @@ from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.utils import timezone
 
-from stop_check.models import EmailVerification
-from stop_check.services.email_templates import build_verification_email
+from stop_check.models import EmailVerification, SubscriptionTariff
+from stop_check.services.email_templates import (
+    build_payment_report_email,
+    build_verification_email,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,25 +62,51 @@ def verify_code(email, code):
     return verification, None
 
 
-def send_verification_email(email, code, organization_name, first_name):
+def _send_webhook_email(body):
     webhook_url = getattr(settings, 'N8N_EMAIL_WEBHOOK_URL', '')
     email_secret = getattr(settings, 'EMAIL_SECRET', '')
 
     if not webhook_url:
         if settings.DEBUG:
-            logger.warning('N8N_EMAIL_WEBHOOK_URL não configurado. Código: %s', code)
-            return True, code
+            logger.warning('N8N_EMAIL_WEBHOOK_URL não configurado. Email: %s', body.get('assunto'))
+            return True, body.get('texto')
         raise ValueError('Serviço de email não configurado.')
 
     headers = {
         'Content-Type': 'application/json',
         'X-Webhook-Secret': email_secret,
     }
-    body = build_verification_email(email, code, organization_name, first_name)
-
     response = requests.post(webhook_url, json=body, headers=headers, timeout=15)
     response.raise_for_status()
     return True, None
+
+
+def send_verification_email(email, code, organization_name, first_name):
+    body = build_verification_email(email, code, organization_name, first_name)
+    result = _send_webhook_email(body)
+    if settings.DEBUG and not getattr(settings, 'N8N_EMAIL_WEBHOOK_URL', ''):
+        return True, code
+    return result
+
+
+def send_payment_report_notification(subscription):
+    tariff = SubscriptionTariff.get()
+    notify_email = tariff.payment_notification_email or getattr(
+        settings, 'SUBSCRIPTION_NOTIFY_EMAIL', '',
+    )
+    if not notify_email:
+        if settings.DEBUG:
+            logger.warning(
+                'Email de pagamento não configurado. Assinatura #%s',
+                subscription.pk,
+            )
+            return True, 'Email não configurado (modo debug).'
+        raise ValueError(
+            'Configure o email de aviso de pagamento na Tarifa de Assinatura.',
+        )
+
+    body = build_payment_report_email(subscription, notify_email)
+    return _send_webhook_email(body)
 
 
 def resend_verification(email):

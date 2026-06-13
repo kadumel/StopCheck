@@ -10,8 +10,11 @@
         {% csrf_token %}
         {% for field in form %}
         <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">{{ field.label }}</label>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
             {{ field }}
+            {% if field.name == 'plate' %}
+            <p class="text-xs text-slate-500 mt-1">Formato: XX-XX-XX (ex.: AB-12-CD)</p>
+            {% endif %}
             {% if field.errors %}<p class="text-red-500 text-xs mt-1">{{ field.errors.0 }}</p>{% endif %}
         </div>
         {% endfor %}
@@ -21,4 +24,41 @@
         </div>
     </form>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const input = document.getElementById('id_plate');
+    if (!input) return;
+
+    function formatPlate(value) {
+        const raw = value.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 6);
+        if (raw.length <= 2) return raw;
+        if (raw.length <= 4) return raw.slice(0, 2) + '-' + raw.slice(2);
+        return raw.slice(0, 2) + '-' + raw.slice(2, 4) + '-' + raw.slice(4);
+    }
+
+    input.addEventListener('input', function() {
+        const start = input.selectionStart;
+        const before = input.value;
+        input.value = formatPlate(input.value);
+        const diff = input.value.length - before.length;
+        input.setSelectionRange(Math.max(0, start + diff), Math.max(0, start + diff));
+    });
+
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Backspace' && input.selectionStart === input.selectionEnd) {
+            const pos = input.selectionStart;
+            if (pos > 0 && input.value[pos - 1] === '-') {
+                e.preventDefault();
+                input.value = input.value.slice(0, pos - 1) + input.value.slice(pos);
+                input.setSelectionRange(pos - 1, pos - 1);
+            }
+        }
+    });
+
+    input.value = formatPlate(input.value);
+})();
+</script>
 {% endblock %}

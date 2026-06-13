@@ -1,67 +1,116 @@
 {% extends 'stop_check/base.html' %}
 
-{% block title %}Rotas — StopCheck{% endblock %}
+{% block title %}Empresa / Rota — StopCheck{% endblock %}
 
 {% block header %}
-<h2 class="text-lg font-semibold text-slate-800">Rotas — {{ month_name }} {{ year }}</h2>
+<h2 class="text-lg font-semibold text-slate-800">Empresa / Rota</h2>
 {% endblock %}
 
 {% block header_actions %}
-<a href="{% url 'route_create' %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">
-    Nova Rota
-</a>
+<div class="flex flex-wrap gap-2">
+    <a href="{% url 'delivery_company_create' %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition">
+        Nova Empresa
+    </a>
+    <a href="{% url 'company_route_create' %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">
+        Nova Rota
+    </a>
+</div>
 {% endblock %}
 
 {% block content %}
-<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-    {% if routes %}
-    <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-            <thead class="bg-slate-50">
-                <tr class="text-left text-slate-500">
-                    <th class="px-4 py-3 font-medium">Data</th>
-                    <th class="px-4 py-3 font-medium">Rota</th>
-                    <th class="px-4 py-3 font-medium">Motorista</th>
-                    <th class="px-4 py-3 font-medium">Veículo</th>
-                    <th class="px-4 py-3 font-medium">Empresa</th>
-                    <th class="px-4 py-3 font-medium">Comparativo</th>
-                    <th class="px-4 py-3 font-medium">Estado</th>
-                    <th class="px-4 py-3 font-medium"></th>
-                </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100">
-                {% for route in routes %}
-                <tr class="hover:bg-slate-50">
-                    <td class="px-4 py-3 font-medium">{{ route.date|date:"d/m/Y" }}</td>
-                    <td class="px-4 py-3 font-medium text-brand-700">{{ route.name }}</td>
-                    <td class="px-4 py-3">{{ route.driver.name }}</td>
-                    <td class="px-4 py-3 text-slate-500">{{ route.vehicle.plate }}</td>
-                    <td class="px-4 py-3 text-slate-500">{{ route.delivery_company.name|default:"—" }}</td>
-                    <td class="px-4 py-3">
-                        {% if route.comparison %}
-                        <span class="text-xs text-brand-600">Registado</span>
-                        {% else %}
-                        <span class="text-xs text-slate-400">Pendente</span>
-                        {% endif %}
-                    </td>
-                    <td class="px-4 py-3">
-                        <span class="px-2 py-1 text-xs rounded-full {% if route.is_active %}bg-emerald-100 text-emerald-700{% else %}bg-slate-100 text-slate-500{% endif %}">
-                            {% if route.is_active %}Ativa{% else %}Inativa{% endif %}
-                        </span>
-                    </td>
-                    <td class="px-4 py-3 text-right">
-                        <a href="{% url 'route_edit' route.pk %}" class="text-brand-600 hover:underline">Editar</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<p class="text-sm text-slate-500 mb-4">
+    Registe as empresas contratantes e o catálogo de rotas com tarifas.
+    Para atribuir execuções diárias, use <a href="{% url 'production_list' %}" class="text-brand-600 hover:underline">Produção</a>.
+</p>
+
+{% if companies %}
+<div class="space-y-4">
+    {% for company in companies %}
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200">
+            <div>
+                <h4 class="font-semibold text-slate-800">{{ company.name }}</h4>
+                <p class="text-xs text-slate-500">
+                    {{ company.contact_email|default:"Sem email" }}
+                    {% if company.contact_phone %} · {{ company.contact_phone }}{% endif %}
+                </p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 text-sm">
+                <span class="px-2 py-1 text-xs rounded-full {% if company.is_active %}bg-emerald-100 text-emerald-700{% else %}bg-slate-100 text-slate-500{% endif %}">
+                    {% if company.is_active %}Ativa{% else %}Inativa{% endif %}
+                </span>
+                <a href="{% url 'delivery_company_edit' company.pk %}" class="text-brand-600 hover:underline">Editar</a>
+                <span class="text-slate-300">·</span>
+                <a href="{% url 'company_route_create' %}?empresa={{ company.pk }}" class="text-brand-600 hover:underline">+ Rota</a>
+                {% if company.can_be_deleted %}
+                <span class="text-slate-300">·</span>
+                <a href="{% url 'delivery_company_delete' company.pk %}" class="text-red-600 hover:underline">Eliminar</a>
+                {% else %}
+                <span class="text-slate-300">·</span>
+                <span class="text-slate-400" title="Existem registos associados">Em uso</span>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if company.company_routes.all %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-slate-500 border-b border-slate-100">
+                        <th class="px-4 py-2 font-medium">Código da Rota</th>
+                        <th class="px-4 py-2 font-medium">Stop</th>
+                        <th class="px-4 py-2 font-medium">PUDO</th>
+                        <th class="px-4 py-2 font-medium">Recolha</th>
+                        <th class="px-4 py-2 font-medium">Diária</th>
+                        <th class="px-4 py-2 font-medium">Plano de conta</th>
+                        <th class="px-4 py-2 font-medium">Estado</th>
+                        <th class="px-4 py-2 font-medium text-center">Ações</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for route in company.company_routes.all %}
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-4 py-2 font-medium text-brand-700">{{ route.name }}</td>
+                        <td class="px-4 py-2 text-slate-600">{{ route.price_per_stop|floatformat:2 }} €</td>
+                        <td class="px-4 py-2 text-slate-600">{{ route.price_per_pudo|floatformat:2 }} €</td>
+                        <td class="px-4 py-2 text-slate-600">{{ route.price_per_pickup|floatformat:2 }} €</td>
+                        <td class="px-4 py-2 text-slate-600">{{ route.daily_rate|floatformat:2 }} €</td>
+                        <td class="px-4 py-2 text-slate-600">{{ route.revenue_account.name|default:"—" }}</td>
+                        <td class="px-4 py-2">
+                            <span class="px-2 py-1 text-xs rounded-full {% if route.is_active %}bg-emerald-100 text-emerald-700{% else %}bg-slate-100 text-slate-500{% endif %}">
+                                {% if route.is_active %}Ativa{% else %}Inativa{% endif %}
+                            </span>
+                        </td>
+                        <td class="px-4 py-2 text-center whitespace-nowrap text-sm">
+                            <a href="{% url 'company_route_edit' route.pk %}" class="text-brand-600 hover:underline">Editar</a>
+                            <span class="text-slate-300 mx-1">·</span>
+                            <a href="{% url 'route_create' %}?rota={{ route.pk }}" class="text-brand-600 hover:underline">Produção</a>
+                            {% if route.can_be_deleted %}
+                            <span class="text-slate-300 mx-1">·</span>
+                            <a href="{% url 'company_route_delete' route.pk %}" class="text-red-600 hover:underline">Eliminar</a>
+                            {% else %}
+                            <span class="text-slate-300 mx-1">·</span>
+                            <span class="text-slate-400" title="Existem atribuições em produção">Em uso</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="px-4 py-6 text-sm text-slate-500 text-center">
+            Nenhuma rota registada.
+            <a href="{% url 'company_route_create' %}?empresa={{ company.pk }}" class="text-brand-600 hover:underline">Adicionar rota</a>
+        </p>
+        {% endif %}
     </div>
-    {% else %}
-    <div class="text-center py-16 px-4">
-        <p class="text-slate-500 mb-4">Nenhuma rota atribuída este mês.</p>
-        <a href="{% url 'route_create' %}" class="inline-flex px-6 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition">Criar Rota</a>
-    </div>
-    {% endif %}
+    {% endfor %}
 </div>
+{% else %}
+<div class="bg-white rounded-xl border border-slate-200 text-center py-12 px-4">
+    <p class="text-slate-500 mb-4">Comece por registar uma empresa contratante.</p>
+    <a href="{% url 'delivery_company_create' %}" class="inline-flex px-6 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition">Nova Empresa</a>
+</div>
+{% endif %}
 {% endblock %}

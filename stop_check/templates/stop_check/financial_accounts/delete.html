@@ -1,0 +1,31 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Eliminar Plano de Conta — StopCheck{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    {% if blockers %}
+    <h2 class="text-lg font-semibold text-slate-800 mb-2 text-center">Não é possível eliminar</h2>
+    <p class="text-slate-500 text-sm text-center mb-4">
+        O plano de conta <strong>{{ object.name }}</strong> está referenciado noutros registos:
+    </p>
+    <ul class="text-sm text-slate-600 list-disc list-inside space-y-1 mb-6 bg-red-50 border border-red-100 rounded-lg p-4">
+        {% for item in blockers %}
+        <li>{{ item }}</li>
+        {% endfor %}
+    </ul>
+    <div class="text-center">
+        <a href="{% url 'financial_account_list' %}{% if return_tipo %}?tipo={{ return_tipo|urlencode }}{% endif %}" class="inline-flex px-6 py-2.5 text-slate-600 rounded-lg hover:bg-slate-100 transition">Voltar</a>
+    </div>
+    {% else %}
+    <h2 class="text-lg font-semibold text-slate-800 mb-2 text-center">Eliminar plano de conta?</h2>
+    <p class="text-slate-500 text-center mb-6">{{ object.name }}</p>
+    <form method="post" class="flex gap-3 justify-center">
+        {% csrf_token %}
+        <input type="hidden" name="return_tipo" value="{{ return_tipo }}">
+        <button type="submit" class="px-6 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">Eliminar</button>
+        <a href="{% url 'financial_account_list' %}{% if return_tipo %}?tipo={{ return_tipo|urlencode }}{% endif %}" class="px-6 py-2.5 text-slate-600 rounded-lg hover:bg-slate-100 transition">Cancelar</a>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

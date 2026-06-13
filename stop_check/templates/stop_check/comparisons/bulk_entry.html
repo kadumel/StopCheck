@@ -1,0 +1,188 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Digitação — {{ title }} — StopCheck{% endblock %}
+
+{% block header %}
+<h2 class="text-lg font-semibold text-slate-800">Digitação rápida — {{ title }}</h2>
+{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'comparison_list' %}{% if return_query %}?{{ return_query }}{% endif %}" class="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition">
+    Voltar à lista
+</a>
+{% endblock %}
+
+{% block content %}
+<p class="text-sm text-slate-500 mb-4">
+    {{ comparisons|length }} dia(s) seleccionado(s). Use <kbd class="px-1.5 py-0.5 bg-slate-200 rounded text-xs font-mono">Tab</kbd> para avançar entre campos;
+    no último campo (<strong>Recolhas</strong>) passa automaticamente ao dia seguinte.
+</p>
+
+<form method="post" id="bulk-entry-form" class="max-w-xl mx-auto">
+    {% csrf_token %}
+    <input type="hidden" name="ids" value="{{ ids_csv }}">
+    <input type="hidden" name="tipo" value="{{ tipo }}">
+    <input type="hidden" name="return_query" value="{{ return_query }}">
+
+    <div class="mb-4 flex items-center justify-between gap-4">
+        <button type="button" id="btn-prev-day" class="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40" disabled>
+            ← Anterior
+        </button>
+        <div class="text-center flex-1">
+            <p class="text-xs text-slate-500 uppercase tracking-wide">Dia <span id="day-current">1</span> de {{ comparisons|length }}</p>
+            <div class="mt-2 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                <div id="day-progress" class="h-full bg-brand-500 transition-all duration-200" style="width: {% widthratio 1 comparisons|length 100 %}%"></div>
+            </div>
+        </div>
+        <button type="button" id="btn-next-day" class="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40">
+            Seguinte →
+        </button>
+    </div>
+
+    {% for comp in comparisons %}
+    <div class="day-panel hidden" data-index="{{ forloop.counter0 }}"
+         data-date="{{ comp.date|date:'d/m/Y' }}"
+         data-route="{{ comp.route.name|default:'—' }}"
+         data-driver="{{ comp.driver.name }}"
+         data-vehicle="{{ comp.vehicle.plate|default:'—' }}">
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-100 {% if is_driver_mode %}bg-brand-50{% else %}bg-slate-50{% endif %}">
+                <p class="text-2xl font-bold text-slate-800">{{ comp.date|date:"d/m/Y" }}</p>
+                <p class="text-sm text-brand-700 font-medium mt-1">{{ comp.route.name|default:"—" }}</p>
+                <p class="text-xs text-slate-500 mt-1">{{ comp.driver.name }} · {{ comp.vehicle.plate|default:"—" }}</p>
+            </div>
+            <div class="p-6 space-y-5">
+                <div>
+                    <label for="comp_{{ comp.pk }}_stops" class="block text-sm font-medium text-slate-700 mb-2">Stops</label>
+                    <input type="number" min="0" step="1" inputmode="numeric"
+                           name="comp_{{ comp.pk }}_stops" id="comp_{{ comp.pk }}_stops"
+                           value="{% if is_driver_mode %}{{ comp.driver_stops }}{% else %}{{ comp.company_stops }}{% endif %}"
+                           class="bulk-field bulk-stops w-full px-4 py-3 text-2xl text-center font-semibold rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                           autocomplete="off">
+                </div>
+                <div>
+                    <label for="comp_{{ comp.pk }}_pudo" class="block text-sm font-medium text-slate-700 mb-2">PUDO</label>
+                    <input type="number" min="0" step="1" inputmode="numeric"
+                           name="comp_{{ comp.pk }}_pudo" id="comp_{{ comp.pk }}_pudo"
+                           value="{% if is_driver_mode %}{{ comp.driver_pudo }}{% else %}{{ comp.company_pudo }}{% endif %}"
+                           class="bulk-field bulk-pudo w-full px-4 py-3 text-2xl text-center font-semibold rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                           autocomplete="off">
+                </div>
+                <div>
+                    <label for="comp_{{ comp.pk }}_pickups" class="block text-sm font-medium text-slate-700 mb-2">Recolhas</label>
+                    <input type="number" min="0" step="1" inputmode="numeric"
+                           name="comp_{{ comp.pk }}_pickups" id="comp_{{ comp.pk }}_pickups"
+                           value="{% if is_driver_mode %}{{ comp.driver_pickups }}{% else %}{{ comp.company_pickups }}{% endif %}"
+                           class="bulk-field bulk-pickups w-full px-4 py-3 text-2xl text-center font-semibold rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
+                           autocomplete="off">
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <div class="mt-6 flex flex-wrap gap-3 justify-center sticky bottom-4">
+        <button type="submit" class="px-8 py-3 text-sm font-semibold text-white bg-brand-600 rounded-xl hover:bg-brand-700 shadow-lg shadow-brand-600/20 transition">
+            Guardar todos ({{ comparisons|length }} dias)
+        </button>
+        <a href="{% url 'comparison_list' %}{% if return_query %}?{{ return_query }}{% endif %}" class="px-6 py-3 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition">
+            Cancelar
+        </a>
+    </div>
+</form>
+
+<div id="day-dots" class="flex flex-wrap justify-center gap-1.5 mt-6 max-w-xl mx-auto">
+    {% for comp in comparisons %}
+    <button type="button" class="day-dot w-2.5 h-2.5 rounded-full bg-slate-300 hover:bg-brand-400 transition" data-index="{{ forloop.counter0 }}" title="{{ comp.date|date:'d/m/Y' }}"></button>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const panels = Array.from(document.querySelectorAll('.day-panel'));
+    const total = panels.length;
+    let current = 0;
+
+    const dayCurrent = document.getElementById('day-current');
+    const dayProgress = document.getElementById('day-progress');
+    const btnPrev = document.getElementById('btn-prev-day');
+    const btnNext = document.getElementById('btn-next-day');
+    const dots = Array.from(document.querySelectorAll('.day-dot'));
+
+    function showDay(index) {
+        if (index < 0 || index >= total) return;
+        current = index;
+        panels.forEach((p, i) => {
+            p.classList.toggle('hidden', i !== current);
+        });
+        dots.forEach((d, i) => {
+            d.classList.toggle('bg-brand-600', i === current);
+            d.classList.toggle('bg-slate-300', i !== current);
+            d.classList.toggle('scale-125', i === current);
+        });
+        dayCurrent.textContent = current + 1;
+        dayProgress.style.width = ((current + 1) / total * 100) + '%';
+        btnPrev.disabled = current === 0;
+        btnNext.disabled = current === total - 1;
+
+        const panel = panels[current];
+        const stops = panel.querySelector('.bulk-stops');
+        if (stops) {
+            stops.focus();
+            stops.select();
+        }
+    }
+
+    function nextDay() {
+        if (current < total - 1) showDay(current + 1);
+    }
+
+    function prevDay() {
+        if (current > 0) showDay(current - 1);
+    }
+
+    btnPrev.addEventListener('click', prevDay);
+    btnNext.addEventListener('click', nextDay);
+    dots.forEach(dot => {
+        dot.addEventListener('click', () => showDay(parseInt(dot.dataset.index, 10)));
+    });
+
+    document.getElementById('bulk-entry-form').addEventListener('keydown', function(e) {
+        const target = e.target;
+        if (!target.classList.contains('bulk-field')) return;
+
+        const panel = panels[current];
+        const isPickups = target.classList.contains('bulk-pickups');
+        const isStops = target.classList.contains('bulk-stops');
+
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (isPickups) nextDay();
+            else if (target.classList.contains('bulk-stops')) panel.querySelector('.bulk-pudo').focus();
+            else panel.querySelector('.bulk-pickups').focus();
+            return;
+        }
+
+        if (e.key === 'Tab' && !e.shiftKey && isPickups) {
+            e.preventDefault();
+            nextDay();
+            return;
+        }
+
+        if (e.key === 'Tab' && e.shiftKey && isStops) {
+            e.preventDefault();
+            if (current > 0) {
+                showDay(current - 1);
+                const prevPanel = panels[current];
+                const pickups = prevPanel.querySelector('.bulk-pickups');
+                if (pickups) { pickups.focus(); pickups.select(); }
+            }
+        }
+    });
+
+    showDay(0);
+})();
+</script>
+{% endblock %}

@@ -1,22 +1,54 @@
+import re
+from decimal import Decimal
+
+from datetime import date
+
 from django import forms
+from django.contrib.auth import authenticate
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.models import User
-
 from django.db.models import Q
+from django.utils import timezone
+
+from .services.production_service import DEFAULT_WEEKDAYS, WEEKDAY_LABELS, get_dates_for_month
 
 from .models import (
+    CompanyRoute,
     DailyComparison,
     DeliveryCompany,
     Driver,
     Expense,
-    ExpenseCategory,
+    FinancialAccount,
     FuelRecord,
     Organization,
     RateConfig,
+    Revenue,
     Route,
+    Subscription,
     UserProfile,
     Vehicle,
 )
+
+
+CHOICE_INPUT_CLASS = (
+    'w-4 h-4 shrink-0 text-emerald-600 border-slate-300 focus:ring-emerald-500'
+)
+
+
+MONTH_CHOICES = [
+    (1, 'Janeiro'),
+    (2, 'Fevereiro'),
+    (3, 'Março'),
+    (4, 'Abril'),
+    (5, 'Maio'),
+    (6, 'Junho'),
+    (7, 'Julho'),
+    (8, 'Agosto'),
+    (9, 'Setembro'),
+    (10, 'Outubro'),
+    (11, 'Novembro'),
+    (12, 'Dezembro'),
+]
 
 
 class StyledFormMixin:
@@ -25,7 +57,9 @@ class StyledFormMixin:
         for field in self.fields.values():
             css = 'w-full px-4 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition'
             if isinstance(field.widget, forms.CheckboxInput):
-                field.widget.attrs['class'] = 'w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500'
+                field.widget.attrs['class'] = CHOICE_INPUT_CLASS + ' rounded'
+            elif isinstance(field.widget, (forms.RadioSelect, forms.CheckboxSelectMultiple)):
+                field.widget.attrs['class'] = CHOICE_INPUT_CLASS + ' rounded'
             elif isinstance(field.widget, forms.Textarea):
                 field.widget.attrs['class'] = css + ' min-h-[100px]'
             elif isinstance(field.widget, forms.Select):
@@ -35,8 +69,47 @@ class StyledFormMixin:
 
 
 class LoginForm(StyledFormMixin, AuthenticationForm):
-    username = forms.CharField(label='Email ou Utilizador')
+    username = forms.CharField(label='Email ou NIF')
     password = forms.CharField(label='Palavra-passe', widget=forms.PasswordInput)
+
+    def clean(self):
+        username = self.cleaned_data.get('username')
+        password = self.cleaned_data.get('password')
+
+        if username is not None and password:
+            resolved_username = self._resolve_login(username)
+            self.user_cache = authenticate(
+                self.request,
+                username=resolved_username,
+                password=password,
+            )
+            if self.user_cache is None:
+                raise self.get_invalid_login_error()
+            self.confirm_login_allowed(self.user_cache)
+
+        return self.cleaned_data
+
+    @staticmethod
+    def _resolve_login(login_value):
+        login_value = (login_value or '').strip()
+        if not login_value:
+            return login_value
+
+        if '@' in login_value:
+            user = User.objects.filter(email__iexact=login_value).first()
+            if user:
+                return user.username
+
+        digits = ''.join(c for c in login_value if c.isdigit())
+        if len(digits) == 9:
+            user = User.objects.filter(username=digits).first()
+            if user:
+                return user.username
+            driver = Driver.objects.filter(nif=digits).select_related('user').first()
+            if driver and driver.user_id:
+                return driver.user.username
+
+        return login_value
 
 
 class RegisterForm(StyledFormMixin, UserCreationForm):
@@ -78,6 +151,9 @@ class EmailVerificationForm(StyledFormMixin, forms.Form):
         return code
 
 
+PLATE_PATTERN = re.compile(r'^[A-Z0-9]{2}-[A-Z0-9]{2}-[A-Z0-9]{2}$')
+
+
 class VehicleForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = Vehicle
@@ -91,43 +167,94 @@ class VehicleForm(StyledFormMixin, forms.ModelForm):
             'is_active': 'Ativo',
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['fuel_type'].empty_label = 'Selecionar...'
+        self.fields['plate'].widget.attrs.update({
+            'placeholder': 'AB-12-CD',
+            'maxlength': '8',
+            'autocomplete': 'off',
+            'class': (
+                self.fields['plate'].widget.attrs.get('class', '')
+                + ' uppercase tracking-wider font-mono'
+            ).strip(),
+        })
+
+    @staticmethod
+    def format_plate(value):
+        compact = ''.join(c for c in (value or '').upper() if c.isalnum())
+        if len(compact) != 6:
+            return value
+        return f'{compact[0:2]}-{compact[2:4]}-{compact[4:6]}'
+
+    def clean_plate(self):
+        compact = ''.join(
+            c for c in self.cleaned_data.get('plate', '').upper() if c.isalnum()
+        )
+        if len(compact) != 6:
+            raise forms.ValidationError('Use o formato XX-XX-XX (ex.: AB-12-CD).')
+        plate = f'{compact[0:2]}-{compact[2:4]}-{compact[4:6]}'
+        if not PLATE_PATTERN.match(plate):
+            raise forms.ValidationError('Use o formato XX-XX-XX (ex.: AB-12-CD).')
+        return plate
+
 
 class DriverForm(StyledFormMixin, forms.ModelForm):
     create_account = forms.BooleanField(
         required=False, initial=True, label='Criar conta de acesso (login)'
     )
-    username = forms.CharField(
-        required=False, label='Utilizador', max_length=150,
-        help_text='Obrigatório se criar conta de acesso.',
-    )
     password = forms.CharField(
         required=False, label='Palavra-passe', widget=forms.PasswordInput,
+        help_text='Obrigatória ao criar conta. Utilizador de login: NIF.',
     )
 
     class Meta:
         model = Driver
-        fields = ['name', 'email', 'phone', 'license_number', 'default_vehicle', 'is_active']
+        fields = ['name', 'nif', 'email', 'phone', 'license_number', 'is_active']
         labels = {
             'name': 'Nome',
+            'nif': 'NIF',
             'email': 'Email',
             'phone': 'Telefone',
             'license_number': 'Carta de Condução',
-            'default_vehicle': 'Veículo Padrão',
             'is_active': 'Ativo',
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['nif'].widget.attrs.update({
+            'inputmode': 'numeric',
+            'pattern': '[0-9]{9}',
+            'maxlength': '9',
+            'placeholder': '123456789',
+        })
+
+    def clean_nif(self):
+        nif = self._normalize_nif(self.cleaned_data.get('nif', ''))
+        if len(nif) != 9:
+            raise forms.ValidationError('O NIF deve ter 9 dígitos.')
+        qs = Driver.objects.filter(nif=nif)
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError('Este NIF já está registado.')
+        return nif
+
     def clean(self):
         cleaned = super().clean()
+        nif = cleaned.get('nif')
         if cleaned.get('create_account'):
-            if not cleaned.get('username'):
-                self.add_error('username', 'Indique um utilizador para a conta.')
             if not cleaned.get('password') and not self.instance.pk:
                 self.add_error('password', 'Indique uma palavra-passe.')
-            if cleaned.get('username') and User.objects.filter(
-                username=cleaned['username']
-            ).exclude(pk=self.instance.user_id if self.instance.user_id else None).exists():
-                self.add_error('username', 'Este utilizador já existe.')
+            if nif and User.objects.filter(username=nif).exclude(
+                pk=self.instance.user_id if self.instance.user_id else None
+            ).exists():
+                self.add_error('nif', 'Este NIF já está a ser usado como utilizador.')
         return cleaned
+
+    @staticmethod
+    def _normalize_nif(value):
+        return ''.join(c for c in (value or '') if c.isdigit())
 
     def save(self, commit=True):
         driver = super().save(commit=False)
@@ -139,18 +266,21 @@ class DriverForm(StyledFormMixin, forms.ModelForm):
         return driver
 
     def _create_user_account(self, driver):
-        if not self.cleaned_data.get('create_account') or not self.cleaned_data.get('username'):
+        if not self.cleaned_data.get('create_account'):
             return
+        username = driver.nif
         if driver.user:
             user = driver.user
-            user.username = self.cleaned_data['username']
+            user.username = username
             if self.cleaned_data.get('password'):
                 user.set_password(self.cleaned_data['password'])
             user.email = driver.email or user.email
             user.save()
             return
+        if not self.cleaned_data.get('password'):
+            return
         user = User.objects.create_user(
-            username=self.cleaned_data['username'],
+            username=username,
             password=self.cleaned_data['password'],
             email=driver.email,
             first_name=driver.name.split()[0] if driver.name else '',
@@ -165,25 +295,183 @@ class DriverForm(StyledFormMixin, forms.ModelForm):
         driver.save(update_fields=['user'])
 
 
+class CompanyRouteForm(StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = CompanyRoute
+        fields = [
+            'delivery_company', 'name', 'revenue_account',
+            'price_per_stop', 'price_per_pudo', 'price_per_pickup', 'daily_rate',
+            'notes', 'is_active',
+        ]
+        widgets = {
+            'notes': forms.Textarea(attrs={'rows': 3}),
+        }
+        labels = {
+            'delivery_company': 'Empresa Contratante',
+            'name': 'Nome / Código da Rota',
+            'revenue_account': 'Plano de conta (Receita)',
+            'price_per_stop': 'Preço por Parada (€)',
+            'price_per_pudo': 'Preço por PUDO (€)',
+            'price_per_pickup': 'Preço por Recolha (€)',
+            'daily_rate': 'Diária (€)',
+            'notes': 'Observações',
+            'is_active': 'Ativa',
+        }
+
+    def clean_revenue_account(self):
+        account = self.cleaned_data.get('revenue_account')
+        if account and account.account_type != FinancialAccount.TYPE_REVENUE:
+            raise forms.ValidationError('Seleccione um plano de conta do tipo Receita.')
+        return account
+
+
+class ProductionAssignForm(StyledFormMixin, forms.Form):
+    SCHEDULE_DAY = 'day'
+    SCHEDULE_MONTH = 'month'
+    SCHEDULE_CHOICES = [
+        (SCHEDULE_DAY, 'Um dia'),
+        (SCHEDULE_MONTH, 'Mês inteiro'),
+    ]
+
+    company_route = forms.ModelChoiceField(
+        queryset=CompanyRoute.objects.none(),
+        label='Empresa / Rota',
+    )
+    driver = forms.ModelChoiceField(queryset=Driver.objects.none(), label='Motorista')
+    vehicle = forms.ModelChoiceField(queryset=Vehicle.objects.none(), label='Veículo')
+    schedule_mode = forms.ChoiceField(
+        choices=SCHEDULE_CHOICES,
+        initial=SCHEDULE_DAY,
+        label='Agendar por',
+        widget=forms.RadioSelect,
+    )
+    date = forms.DateField(
+        required=False,
+        label='Dia',
+        widget=forms.DateInput(attrs={'type': 'date'}),
+    )
+    schedule_month = forms.ChoiceField(
+        choices=MONTH_CHOICES,
+        required=False,
+        label='Mês',
+    )
+    schedule_year = forms.ChoiceField(
+        choices=[],
+        required=False,
+        label='Ano',
+    )
+    weekdays = forms.MultipleChoiceField(
+        choices=WEEKDAY_LABELS,
+        required=False,
+        label='Dias da semana',
+        widget=forms.CheckboxSelectMultiple,
+        initial=list(DEFAULT_WEEKDAYS),
+    )
+    notes = forms.CharField(
+        required=False,
+        label='Observações',
+        widget=forms.Textarea(attrs={'rows': 3}),
+    )
+    is_active = forms.BooleanField(required=False, initial=True, label='Ativa')
+    replace_existing = forms.BooleanField(
+        required=False,
+        label='Substituir atribuições existentes sem dados registados',
+    )
+    confirm_step = forms.BooleanField(required=False, widget=forms.HiddenInput)
+    continue_adding = forms.BooleanField(
+        required=False,
+        label='Continuar',
+    )
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.organization = organization
+        if organization:
+            routes = CompanyRoute.objects.filter(
+                organization=organization, is_active=True
+            ).select_related('delivery_company').order_by(
+                'delivery_company__name', 'name'
+            )
+            self.fields['company_route'].queryset = routes
+            self.fields['company_route'].label_from_instance = (
+                lambda cr: f'{cr.delivery_company.name} — {cr.name}'
+            )
+            self.fields['driver'].queryset = Driver.objects.filter(
+                organization=organization, is_active=True
+            )
+            self.fields['vehicle'].queryset = Vehicle.objects.filter(
+                organization=organization, is_active=True
+            )
+        if not self.is_bound:
+            today = timezone.localdate()
+            self.fields['date'].initial = today
+            self.fields['schedule_month'].initial = today.month
+            self.fields['schedule_year'].initial = today.year
+
+        today = timezone.localdate()
+        year_choices = [(y, str(y)) for y in range(today.year - 1, today.year + 3)]
+        self.fields['schedule_year'].choices = year_choices
+
+    def clean(self):
+        cleaned = super().clean()
+        mode = cleaned.get('schedule_mode')
+        if mode == self.SCHEDULE_DAY:
+            if not cleaned.get('date'):
+                self.add_error('date', 'Indique o dia.')
+        elif mode == self.SCHEDULE_MONTH:
+            if not cleaned.get('schedule_month'):
+                self.add_error('schedule_month', 'Seleccione o mês.')
+            if not cleaned.get('schedule_year'):
+                self.add_error('schedule_year', 'Seleccione o ano.')
+            if cleaned.get('schedule_month') and cleaned.get('schedule_year'):
+                try:
+                    date(int(cleaned['schedule_year']), int(cleaned['schedule_month']), 1)
+                except (ValueError, TypeError):
+                    self.add_error('schedule_month', 'Mês ou ano inválido.')
+            if not cleaned.get('weekdays'):
+                self.add_error('weekdays', 'Seleccione pelo menos um dia da semana.')
+        return cleaned
+
+    def get_target_dates(self):
+        mode = self.cleaned_data['schedule_mode']
+        if mode == self.SCHEDULE_DAY:
+            return [self.cleaned_data['date']]
+        year = int(self.cleaned_data['schedule_year'])
+        month = int(self.cleaned_data['schedule_month'])
+        return get_dates_for_month(year, month, self.cleaned_data['weekdays'])
+
+
 class RouteForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = Route
         fields = [
-            'name', 'date', 'driver', 'vehicle', 'delivery_company', 'notes', 'is_active',
+            'company_route', 'date', 'driver', 'vehicle', 'notes', 'is_active',
         ]
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date'}),
             'notes': forms.Textarea(attrs={'rows': 3}),
         }
         labels = {
-            'name': 'Nome / Código da Rota',
+            'company_route': 'Empresa / Rota',
             'date': 'Data',
             'driver': 'Motorista',
             'vehicle': 'Veículo',
-            'delivery_company': 'Empresa Contratante',
             'notes': 'Observações',
             'is_active': 'Ativa',
         }
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if organization:
+            qs = CompanyRoute.objects.filter(
+                organization=organization, is_active=True
+            ).select_related('delivery_company').order_by(
+                'delivery_company__name', 'name'
+            )
+            self.fields['company_route'].queryset = qs
+            self.fields['company_route'].label_from_instance = (
+                lambda cr: f'{cr.delivery_company.name} — {cr.name}'
+            )
 
 
 class DailyComparisonForm(StyledFormMixin, forms.ModelForm):
@@ -211,14 +499,11 @@ class DailyComparisonForm(StyledFormMixin, forms.ModelForm):
 
     def __init__(self, *args, organization=None, **kwargs):
         super().__init__(*args, **kwargs)
-        if organization:
+        if self.instance.pk and self.instance.route_id:
+            self.fields['route'].widget = forms.HiddenInput()
+        elif organization:
             routes = Route.objects.filter(organization=organization, is_active=True)
-            if self.instance.pk and self.instance.route_id:
-                routes = routes.filter(
-                    Q(comparison__isnull=True) | Q(pk=self.instance.route_id)
-                )
-            else:
-                routes = routes.filter(comparison__isnull=True)
+            routes = routes.filter(comparison__isnull=True)
             self.fields['route'].queryset = routes.select_related(
                 'driver', 'vehicle'
             ).order_by('-date', 'name')
@@ -235,7 +520,10 @@ class DailyComparisonForm(StyledFormMixin, forms.ModelForm):
 class FuelRecordForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = FuelRecord
-        fields = ['vehicle', 'driver', 'date', 'liters', 'price_per_liter', 'odometer', 'station', 'notes']
+        fields = [
+            'vehicle', 'driver', 'date', 'liters', 'price_per_liter',
+            'total_cost', 'odometer', 'station', 'notes',
+        ]
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date'}),
             'notes': forms.Textarea(attrs={'rows': 2}),
@@ -246,19 +534,85 @@ class FuelRecordForm(StyledFormMixin, forms.ModelForm):
             'date': 'Data',
             'liters': 'Litros',
             'price_per_liter': 'Preço por Litro (€)',
+            'total_cost': 'Valor Total (€)',
             'odometer': 'Quilometragem',
             'station': 'Posto',
             'notes': 'Observações',
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['total_cost'].widget.attrs.update({
+            'step': '0.01',
+            'inputmode': 'decimal',
+        })
+        if self.instance.pk and not self.data:
+            if not self.instance.total_cost and self.instance.liters and self.instance.price_per_liter:
+                self.initial['total_cost'] = (
+                    self.instance.liters * self.instance.price_per_liter
+                ).quantize(Decimal('0.01'))
+
 
 class ExpenseForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = Expense
-        fields = ['category', 'vehicle', 'date', 'description', 'amount', 'notes']
+        fields = ['account', 'vehicle', 'date', 'description', 'amount', 'notes']
         widgets = {
             'date': forms.DateInput(attrs={'type': 'date'}),
             'notes': forms.Textarea(attrs={'rows': 2}),
+        }
+        labels = {
+            'account': 'Plano de conta',
+            'vehicle': 'Veículo',
+            'date': 'Data',
+            'description': 'Descrição',
+            'amount': 'Valor (€)',
+            'notes': 'Observações',
+        }
+
+
+class RevenueForm(StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = Revenue
+        fields = ['account', 'vehicle', 'date', 'description', 'amount', 'notes']
+        widgets = {
+            'date': forms.DateInput(attrs={'type': 'date'}),
+            'notes': forms.Textarea(attrs={'rows': 2}),
+        }
+        labels = {
+            'account': 'Plano de conta',
+            'vehicle': 'Veículo',
+            'date': 'Data',
+            'description': 'Descrição',
+            'amount': 'Valor (€)',
+            'notes': 'Observações',
+        }
+
+
+class SubscriptionContractForm(StyledFormMixin, forms.Form):
+    contracted_routes = forms.IntegerField(
+        label='Quantidade de rotas',
+        min_value=1,
+        widget=forms.NumberInput(attrs={'min': '1', 'step': '1'}),
+    )
+    payment_method = forms.ChoiceField(
+        label='Forma de pagamento',
+        choices=Subscription.PAYMENT_METHOD_CHOICES,
+        widget=forms.RadioSelect,
+    )
+
+
+class FinancialAccountForm(StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = FinancialAccount
+        fields = ['name', 'account_type', 'color']
+        labels = {
+            'name': 'Nome',
+            'account_type': 'Tipo',
+            'color': 'Cor',
+        }
+        widgets = {
+            'color': forms.TextInput(attrs={'type': 'color'}),
         }
 
 

@@ -1,0 +1,64 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Plano de Contas — StopCheck{% endblock %}
+
+{% block header %}<h2 class="text-lg font-semibold text-slate-800">Plano de Contas Financeiras</h2>{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'financial_account_create' %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">Novo Plano de Conta</a>
+{% endblock %}
+
+{% block content %}
+<form method="get" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-4 max-w-md">
+    <label for="filter-tipo" class="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
+    <div class="flex gap-2">
+        <select id="filter-tipo" name="tipo" class="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+            <option value="">Todos</option>
+            <option value="expense" {% if filter_type == 'expense' %}selected{% endif %}>Despesa</option>
+            <option value="revenue" {% if filter_type == 'revenue' %}selected{% endif %}>Receita</option>
+        </select>
+        <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">Filtrar</button>
+        {% if has_filter %}
+        <a href="{% url 'financial_account_list' %}" class="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition">Limpar</a>
+        {% endif %}
+    </div>
+</form>
+
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for account in accounts %}
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+        <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="w-4 h-4 rounded-full shrink-0 border border-slate-200" style="background-color: {{ account.color }}"></span>
+                    <h3 class="text-lg font-bold text-slate-800 truncate">{{ account.name }}</h3>
+                </div>
+                <span class="inline-flex px-2 py-0.5 text-xs rounded-full {% if account.account_type == 'revenue' %}bg-emerald-100 text-emerald-700{% else %}bg-red-100 text-red-700{% endif %}">
+                    {% if account.account_type == 'revenue' %}Receita{% else %}Despesa{% endif %}
+                </span>
+            </div>
+        </div>
+        <div class="mt-4 flex flex-wrap items-center gap-3 text-sm">
+            <a href="{% url 'financial_account_edit' account.pk %}" class="text-brand-600 hover:underline">Editar</a>
+            {% if account.can_be_deleted %}
+            <span class="text-slate-300">·</span>
+            <a href="{% url 'financial_account_delete' account.pk %}{% if filter_type %}?tipo={{ filter_type|urlencode }}{% endif %}" class="text-red-600 hover:underline">Eliminar</a>
+            {% else %}
+            <span class="text-slate-300">·</span>
+            <span class="text-slate-400" title="Existem registos associados a este plano de conta">Em uso</span>
+            {% endif %}
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-span-full text-center py-16 bg-white rounded-xl border border-slate-200">
+        {% if has_filter %}
+        <p class="text-slate-500 mb-4">Nenhum plano de conta encontrado para o filtro seleccionado.</p>
+        <a href="{% url 'financial_account_list' %}" class="inline-flex px-6 py-3 text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition">Limpar filtro</a>
+        {% else %}
+        <p class="text-slate-500 mb-4">Nenhum plano de conta registado.</p>
+        <a href="{% url 'financial_account_create' %}" class="inline-flex px-6 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition">Criar Plano de Conta</a>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

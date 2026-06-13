@@ -25,8 +25,8 @@ def create_checkout_session(organization, success_url, cancel_url):
         raise ValueError('Stripe não configurado. Defina STRIPE_SECRET_KEY.')
 
     subscription = organization.subscription
-    vehicle_count = max(organization.vehicle_count, 1)
-    monthly_price = subscription.calculate_price(vehicle_count)
+    route_count = max(organization.route_count, 1)
+    monthly_price = subscription.calculate_price(subscription.contracted_routes or route_count)
     amount_cents = int(monthly_price * 100)
 
     customer_id = subscription.stripe_customer_id
@@ -47,7 +47,7 @@ def create_checkout_session(organization, success_url, cancel_url):
             'price_data': {
                 'currency': 'eur',
                 'product_data': {
-                    'name': f'StopCheck — {vehicle_count} veículo(s)',
+                    'name': f'StopCheck — {route_count} rota(s)',
                     'description': 'Controlo de entregas, frota e produtividade',
                 },
                 'unit_amount': amount_cents,

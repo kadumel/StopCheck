@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#059669">
     <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <link rel="manifest" href="/static/manifest.json">
     <title>{% block title %}StopCheck Motorista{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -25,10 +28,7 @@
                 <p class="text-xs text-slate-400">StopCheck</p>
                 <h1 class="font-bold text-lg">{{ driver.name }}</h1>
             </div>
-            <form method="post" action="{% url 'logout' %}" class="inline">
-                {% csrf_token %}
-                <button type="submit" class="text-sm text-slate-400 hover:text-white cursor-pointer">Sair</button>
-            </form>
+            <a href="{% url 'logout' %}" class="text-sm text-slate-400 hover:text-white">Sair</a>
         </div>
     </header>
     <main class="max-w-lg mx-auto px-4 py-4">
@@ -49,6 +49,35 @@
             </a>
         </div>
     </nav>
+    <script>
+    let driverCsrfToken = '';
+
+    async function refreshDriverCsrf() {
+        const res = await fetch('{% url "driver_csrf" %}', {
+            credentials: 'same-origin',
+            cache: 'no-store',
+        });
+        if (!res.ok) return false;
+        const data = await res.json();
+        driverCsrfToken = data.csrfToken || '';
+        document.querySelectorAll('[name=csrfmiddlewaretoken]').forEach((el) => {
+            el.value = driverCsrfToken;
+        });
+        return !!driverCsrfToken;
+    }
+
+    function getCsrfToken() {
+        return driverCsrfToken || document.querySelector('[name=csrfmiddlewaretoken]')?.value || '';
+    }
+    </script>
     {% block extra_js %}{% endblock %}
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then((regs) => {
+            regs.forEach((reg) => reg.unregister());
+        });
+    }
+    refreshDriverCsrf();
+    </script>
 </body>
 </html>

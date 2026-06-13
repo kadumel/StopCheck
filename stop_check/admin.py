@@ -1,21 +1,25 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 from .models import (
+    CompanyRoute,
     DailyComparison,
     DeliveryCompany,
     Driver,
     EmailVerification,
     Expense,
-    ExpenseCategory,
+    FinancialAccount,
     FuelRecord,
+    Revenue,
     ImportBatch,
     Organization,
     RateConfig,
     Route,
     StopEvent,
     Subscription,
+    SubscriptionTariff,
     UserProfile,
     Vehicle,
 )
@@ -40,27 +44,63 @@ class OrganizationAdmin(admin.ModelAdmin):
     search_fields = ['name', 'email']
 
 
+@admin.register(SubscriptionTariff)
+class SubscriptionTariffAdmin(admin.ModelAdmin):
+    list_display = [
+        'price_first_route', 'price_additional_route',
+        'mbway_phone', 'iban', 'payment_notification_email',
+    ]
+
+    def has_add_permission(self, request):
+        return not SubscriptionTariff.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Subscription)
 class SubscriptionAdmin(admin.ModelAdmin):
-    list_display = ['organization', 'status', 'start_date', 'monthly_price']
-    list_filter = ['status']
+    list_display = [
+        'organization', 'status', 'contracted_routes', 'payment_method',
+        'payment_reported_at', 'start_date', 'monthly_price',
+    ]
+    list_filter = ['status', 'payment_method']
+    readonly_fields = ['payment_reported_at']
+    actions = ['activate_subscriptions']
+
+    @admin.action(description='Activar assinaturas seleccionadas')
+    def activate_subscriptions(self, request, queryset):
+        updated = queryset.update(
+            status=Subscription.STATUS_ACTIVE,
+            last_payment_date=timezone.now().date(),
+        )
+        self.message_user(request, f'{updated} assinatura(s) activada(s).')
 
 
 @admin.register(Vehicle)
 class VehicleAdmin(admin.ModelAdmin):
-    list_display = ['plate', 'organization', 'brand', 'model', 'is_active']
-    list_filter = ['organization', 'is_active']
+    list_display = ['plate', 'organization', 'brand', 'model', 'fuel_type', 'is_active']
+    list_filter = ['organization', 'fuel_type', 'is_active']
 
 
 @admin.register(Driver)
 class DriverAdmin(admin.ModelAdmin):
-    list_display = ['name', 'organization', 'phone', 'is_active']
+    list_display = ['name', 'nif', 'organization', 'phone', 'is_active']
     list_filter = ['organization', 'is_active']
+
+
+@admin.register(CompanyRoute)
+class CompanyRouteAdmin(admin.ModelAdmin):
+    list_display = [
+        'name', 'delivery_company', 'revenue_account', 'price_per_stop', 'price_per_pudo',
+        'price_per_pickup', 'daily_rate', 'organization', 'is_active',
+    ]
+    list_filter = ['organization', 'delivery_company', 'is_active']
 
 
 @admin.register(Route)
 class RouteAdmin(admin.ModelAdmin):
-    list_display = ['name', 'date', 'driver', 'vehicle', 'organization', 'is_active']
+    list_display = ['name', 'company_route', 'date', 'driver', 'vehicle', 'organization', 'is_active']
     list_filter = ['organization', 'date', 'is_active']
     date_hierarchy = 'date'
 
@@ -80,12 +120,19 @@ class FuelRecordAdmin(admin.ModelAdmin):
 
 @admin.register(Expense)
 class ExpenseAdmin(admin.ModelAdmin):
-    list_display = ['date', 'description', 'amount', 'category', 'organization']
-    list_filter = ['organization', 'category']
+    list_display = ['date', 'description', 'amount', 'account', 'organization']
+    list_filter = ['organization', 'account']
+
+
+@admin.register(Revenue)
+class RevenueAdmin(admin.ModelAdmin):
+    list_display = ['date', 'description', 'amount', 'account', 'organization']
+    list_filter = ['organization', 'account']
+    date_hierarchy = 'date'
 
 
 admin.site.register(RateConfig)
-admin.site.register(ExpenseCategory)
+admin.site.register(FinancialAccount)
 admin.site.register(DeliveryCompany)
 admin.site.register(UserProfile)
 

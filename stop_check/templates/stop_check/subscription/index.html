@@ -2,82 +2,153 @@
 
 {% block title %}Assinatura — StopCheck{% endblock %}
 
-{% block header %}<h2 class="text-lg font-semibold text-slate-800">Assinatura e Tarifas</h2>{% endblock %}
+{% block header %}<h2 class="text-lg font-semibold text-slate-800">Assinatura</h2>{% endblock %}
 
 {% block content %}
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+<div class="max-w-xl space-y-6">
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <h3 class="font-semibold text-slate-800 mb-4">Plano Atual</h3>
         <div class="p-5 rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 text-white mb-4">
             <p class="text-brand-100 text-sm">Mensalidade</p>
             <p class="text-4xl font-bold mt-1">{{ monthly_price|floatformat:2 }} €</p>
-            <p class="text-brand-100 text-sm mt-2">{{ vehicle_count }} veículo{{ vehicle_count|pluralize:"s" }} ativo{{ vehicle_count|pluralize:"s" }}</p>
+            {% if subscription.status == 'active' and subscription.contracted_routes %}
+            <p class="text-brand-100 text-sm mt-2">{{ subscription.contracted_routes }} rota{{ subscription.contracted_routes|pluralize:"s" }} contratada{{ subscription.contracted_routes|pluralize:"s" }}</p>
+            {% elif subscription.status == 'pending' and subscription.contracted_routes %}
+            <p class="text-brand-100 text-sm mt-2">{{ subscription.contracted_routes }} rota{{ subscription.contracted_routes|pluralize:"s" }} — aguarda pagamento</p>
+            {% else %}
+            <p class="text-brand-100 text-sm mt-2">{{ route_count }} rota{{ route_count|pluralize:"s" }} activa{{ route_count|pluralize:"s" }} no catálogo</p>
+            {% endif %}
         </div>
         <dl class="space-y-2 text-sm">
             <div class="flex justify-between py-2 border-b border-slate-100">
-                <dt class="text-slate-500">1º veículo</dt>
-                <dd>{{ base_price|floatformat:2 }} €/mês</dd>
+                <dt class="text-slate-500">1ª rota</dt>
+                <dd>{{ tariff.price_first_route|floatformat:2 }} €/mês</dd>
             </div>
             <div class="flex justify-between py-2 border-b border-slate-100">
-                <dt class="text-slate-500">Veículos adicionais</dt>
-                <dd>+{{ additional_price|floatformat:2 }} €/mês cada</dd>
+                <dt class="text-slate-500">Rotas adicionais</dt>
+                <dd>+{{ tariff.price_additional_route|floatformat:2 }} €/mês cada</dd>
             </div>
             <div class="flex justify-between py-2">
                 <dt class="text-slate-500">Estado</dt>
                 <dd>
-                    <span class="px-2 py-1 text-xs rounded-full bg-emerald-100 text-emerald-700">
-                        {{ subscription.get_status_display|default:"Ativa" }}
+                    <span class="px-2 py-1 text-xs rounded-full
+                        {% if subscription.status == 'active' %}bg-emerald-100 text-emerald-700
+                        {% elif subscription.status == 'pending' %}bg-amber-100 text-amber-700
+                        {% elif subscription.status == 'trial' %}bg-blue-100 text-blue-700
+                        {% else %}bg-slate-100 text-slate-600{% endif %}">
+                        {{ subscription.get_status_display }}
                     </span>
                 </dd>
             </div>
         </dl>
-        <h4 class="font-medium text-slate-700 mt-6 mb-3">Veículos na Assinatura</h4>
-        <ul class="space-y-2">
-            {% for v in vehicles %}
-            <li class="flex items-center gap-2 text-sm"><span class="w-2 h-2 rounded-full bg-brand-500"></span>{{ v.plate }} — {{ v.brand }} {{ v.model }}</li>
-            {% empty %}
-            <li class="text-slate-400 text-sm">Nenhum veículo ativo. <a href="{% url 'vehicle_create' %}" class="text-brand-600 hover:underline">Adicionar</a></li>
-            {% endfor %}
-        </ul>
 
-        <div class="mt-6 pt-6 border-t border-slate-100 space-y-3">
-            <h4 class="font-medium text-slate-700">Pagamento</h4>
-            {% if stripe_enabled %}
-                {% if subscription.stripe_subscription_id %}
-                <a href="{% url 'stripe_portal' %}" class="block w-full text-center py-3 bg-slate-800 text-white rounded-lg hover:bg-slate-900 transition text-sm font-medium">
-                    Gerir subscrição (Stripe)
-                </a>
-                {% else %}
-                <a href="{% url 'stripe_checkout' %}" class="block w-full text-center py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition text-sm font-medium">
-                    Subscrever com cartão — {{ monthly_price|floatformat:2 }} €/mês
-                </a>
-                {% endif %}
-                <p class="text-xs text-slate-400 text-center">Pagamento seguro via Stripe (Visa, Mastercard, MB Way*)</p>
-            {% else %}
-                <p class="text-sm text-slate-500 bg-slate-50 rounded-lg p-3">
-                    Configure <code class="text-xs">STRIPE_SECRET_KEY</code> para activar pagamentos online.
-                    Entretanto, contacte-nos para activar por transferência ou MB Way.
-                </p>
-            {% endif %}
-            {% if subscription.trial_end_date %}
-            <p class="text-xs text-slate-400">Trial até {{ subscription.trial_end_date|date:"d/m/Y" }}</p>
+        {% if subscription.status == 'trial' %}
+        <p class="text-sm text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mt-4">
+            Período experimental <strong>ilimitado</strong>. Quando quiser contratar, indique abaixo quantas rotas necessita.
+        </p>
+        {% elif subscription.status == 'pending' %}
+        <div class="mt-4 p-4 rounded-lg bg-amber-50 border border-amber-100 text-sm text-amber-900">
+            <p class="font-medium mb-1">Pagamento pendente</p>
+            <p>Valor: <strong>{{ monthly_price|floatformat:2 }} €</strong> · {{ subscription.contracted_routes }} rota{{ subscription.contracted_routes|pluralize:"s" }} · {{ subscription.get_payment_method_display }}</p>
+            {% if subscription.payment_reported %}
+            <p class="text-xs mt-2 text-amber-700">Pagamento informado em {{ subscription.payment_reported_at|date:"d/m/Y H:i" }}. Aguarde a nossa confirmação.</p>
             {% endif %}
         </div>
+        {% endif %}
     </div>
 
+    {% if subscription.status == 'trial' or subscription.status == 'cancelled' %}
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <h3 class="font-semibold text-slate-800 mb-2">Tarifas de Receita</h3>
-        <p class="text-sm text-slate-500 mb-4">Configure quanto recebe por cada operação para calcular a receita bruta.</p>
+        <h3 class="font-semibold text-slate-800 mb-4">Contratar Plano</h3>
         <form method="post" class="space-y-4">
             {% csrf_token %}
-            {% for field in form %}
+            <input type="hidden" name="action" value="contract">
             <div>
-                <label class="block text-sm font-medium text-slate-700 mb-1">{{ field.label }}</label>
-                {{ field }}
+                <label class="block text-sm font-medium text-slate-700 mb-1">{{ contract_form.contracted_routes.label }}</label>
+                {{ contract_form.contracted_routes }}
+                {% if contract_form.contracted_routes.errors %}
+                <p class="text-red-500 text-xs mt-1">{{ contract_form.contracted_routes.errors.0 }}</p>
+                {% endif %}
+                <p class="text-xs text-slate-500 mt-1">Número de rotas que pretende utilizar na plataforma.</p>
             </div>
-            {% endfor %}
-            <button type="submit" class="px-6 py-2.5 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition">Guardar Tarifas</button>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">{{ contract_form.payment_method.label }}</label>
+                <div class="space-y-2">
+                    {% for radio in contract_form.payment_method %}
+                    <label class="flex items-center gap-2 text-sm text-slate-700">{{ radio.tag }} {{ radio.choice_label }}</label>
+                    {% endfor %}
+                </div>
+                {% if contract_form.payment_method.errors %}
+                <p class="text-red-500 text-xs mt-1">{{ contract_form.payment_method.errors.0 }}</p>
+                {% endif %}
+            </div>
+            <button type="submit" class="w-full py-3 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition">
+                Submeter pedido de contratação
+            </button>
         </form>
     </div>
+    {% endif %}
+
+    {% if subscription.status == 'pending' %}
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="font-semibold text-slate-800 mb-4">Dados para Pagamento</h3>
+        {% if subscription.payment_method == 'mbway' and tariff.mbway_phone %}
+        <div class="mb-4 p-4 rounded-lg bg-slate-50 border border-slate-200">
+            <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">MB Way</p>
+            <p class="text-xl font-bold text-slate-800">{{ tariff.mbway_phone }}</p>
+            <p class="text-sm text-slate-500 mt-1">Envie {{ monthly_price|floatformat:2 }} € para este número.</p>
+        </div>
+        {% elif subscription.payment_method == 'transfer' and tariff.iban %}
+        <div class="mb-4 p-4 rounded-lg bg-slate-50 border border-slate-200">
+            <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Transferência bancária</p>
+            {% if tariff.iban_holder %}<p class="text-sm text-slate-600">{{ tariff.iban_holder }}</p>{% endif %}
+            <p class="text-lg font-mono font-semibold text-slate-800 mt-1">{{ tariff.iban }}</p>
+            <p class="text-sm text-slate-500 mt-1">Valor: {{ monthly_price|floatformat:2 }} €</p>
+            <p class="text-xs text-slate-400 mt-2">Indique o nome da empresa na referência da transferência.</p>
+        </div>
+        {% else %}
+        <p class="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-3">
+            Os dados de pagamento ainda não foram configurados. Contacte o suporte StopCheck.
+        </p>
+        {% endif %}
+
+        {% if not subscription.payment_reported %}
+        <form method="post" class="mt-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="report_payment">
+            <button type="submit" class="w-full py-3 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition">
+                Informar que o pagamento foi realizado
+            </button>
+            <p class="text-xs text-slate-400 text-center mt-2">Enviaremos um aviso à nossa equipa para confirmar no banco.</p>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if subscription.status == 'active' %}
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h4 class="font-medium text-slate-700 mb-3">Rotas contratadas</h4>
+        <ul class="space-y-2">
+            {% for route in routes %}
+            <li class="flex items-center gap-2 text-sm">
+                <span class="w-2 h-2 rounded-full bg-brand-500 shrink-0"></span>
+                {{ route.delivery_company.name }} — {{ route.name }}
+            </li>
+            {% empty %}
+            <li class="text-slate-400 text-sm">Nenhuma rota activa. <a href="{% url 'company_route_create' %}" class="text-brand-600 hover:underline">Adicionar rota</a></li>
+            {% endfor %}
+        </ul>
+        {% if subscription.contracted_routes and route_count > subscription.contracted_routes %}
+        <p class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-4">
+            Tem {{ route_count }} rotas activas mas contratou {{ subscription.contracted_routes }}. Ajuste o catálogo ou renove o plano.
+        </p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <p class="text-sm text-slate-500">
+        Tarifas operacionais (stop, PUDO, diária) em
+        <a href="{% url 'route_list' %}" class="text-brand-600 hover:underline">Empresa / Rota</a>.
+    </p>
 </div>
 {% endblock %}

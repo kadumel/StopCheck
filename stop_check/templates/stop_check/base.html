@@ -48,7 +48,7 @@
                     <p class="text-xs text-slate-400 truncate max-w-[160px]">{{ user.profile.organization.name }}</p>
                 </div>
             </div>
-            <nav class="px-3 py-4 space-y-1">
+            <nav class="px-3 py-4 space-y-1 overflow-y-auto max-h-[calc(100vh-8rem)]">
                 {% include 'stop_check/components/nav_items.html' %}
             </nav>
             <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-700">
@@ -85,6 +85,7 @@
                 </div>
             </header>
             <main class="p-4 md:p-6">
+                {% block messages %}
                 {% if messages %}
                 <div class="mb-4 space-y-2">
                     {% for message in messages %}
@@ -94,6 +95,7 @@
                     {% endfor %}
                 </div>
                 {% endif %}
+                {% endblock %}
                 {% block content %}{% endblock %}
             </main>
         </div>

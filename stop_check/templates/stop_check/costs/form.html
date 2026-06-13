@@ -8,6 +8,7 @@
 <div class="max-w-lg">
     <form method="post" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
         {% csrf_token %}
+        {% if return_query %}<input type="hidden" name="return_query" value="{{ return_query }}">{% endif %}
         {% for field in form %}
         <div>
             <label class="block text-sm font-medium text-slate-700 mb-1">{{ field.label }}</label>
@@ -17,7 +18,7 @@
         {% endfor %}
         <div class="flex gap-3 pt-2">
             <button type="submit" class="px-6 py-2.5 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition">Guardar</button>
-            <a href="{% url 'expense_list' %}" class="px-6 py-2.5 text-slate-600 rounded-lg hover:bg-slate-100 transition">Cancelar</a>
+            <a href="{% if return_url %}{{ return_url }}{% else %}{% url 'expense_list' %}{% endif %}" class="px-6 py-2.5 text-slate-600 rounded-lg hover:bg-slate-100 transition">Cancelar</a>
         </div>
     </form>
 </div>

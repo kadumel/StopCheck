@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .decorators import manager_required
-from .forms import CompanyImportForm, DeliveryCompanyForm
+from .forms import CompanyImportForm
 from .models import DeliveryCompany, ImportBatch
 from .services.import_service import process_import_batch
 
@@ -58,26 +58,3 @@ def import_detail(request, pk):
     return render(request, 'stop_check/import/detail.html', {'batch': batch})
 
 
-@manager_required
-def delivery_company_list(request):
-    org = request.user.profile.organization
-    companies = DeliveryCompany.objects.filter(organization=org)
-    return render(request, 'stop_check/import/companies.html', {'companies': companies})
-
-
-@manager_required
-def delivery_company_create(request):
-    org = request.user.profile.organization
-    if request.method == 'POST':
-        form = DeliveryCompanyForm(request.POST)
-        if form.is_valid():
-            company = form.save(commit=False)
-            company.organization = org
-            company.save()
-            messages.success(request, f'Empresa {company.name} adicionada.')
-            return redirect('delivery_company_list')
-    else:
-        form = DeliveryCompanyForm()
-    return render(request, 'stop_check/import/company_form.html', {
-        'form': form, 'title': 'Nova Empresa de Entrega',
-    })

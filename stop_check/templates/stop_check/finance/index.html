@@ -1,8 +1,8 @@
 {% extends 'stop_check/base.html' %}
 
-{% block title %}Financeiro — StopCheck{% endblock %}
+{% block title %}Fluxo — StopCheck{% endblock %}
 
-{% block header %}<h2 class="text-lg font-semibold text-slate-800">Controlo Financeiro — {{ month_name }} {{ year }}</h2>{% endblock %}
+{% block header %}<h2 class="text-lg font-semibold text-slate-800">Fluxo de Caixa — {{ month_name }} {{ year }}</h2>{% endblock %}
 
 {% block content %}
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -59,11 +59,11 @@
         {% else %}<p class="text-slate-400 text-sm">Sem dados</p>{% endif %}
     </div>
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <h3 class="font-semibold text-slate-800 mb-4">Despesas por Categoria</h3>
-        {% if expenses_by_category %}
+        <h3 class="font-semibold text-slate-800 mb-4">Despesas por Plano de Conta</h3>
+        {% if expenses_by_account %}
         <ul class="space-y-2">
-            {% for cat, amount in expenses_by_category.items %}
-            <li class="flex justify-between text-sm"><span>{{ cat }}</span><span class="font-medium text-red-600">{{ amount|floatformat:2 }} €</span></li>
+            {% for label, amount in expenses_by_account.items %}
+            <li class="flex justify-between text-sm"><span>{{ label }}</span><span class="font-medium text-red-600">{{ amount|floatformat:2 }} €</span></li>
             {% endfor %}
         </ul>
         {% else %}<p class="text-slate-400 text-sm">Sem dados</p>{% endif %}

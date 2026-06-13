@@ -29,8 +29,16 @@ class Organization(models.Model):
         return self.vehicles.filter(is_active=True).count()
 
     @property
+    def route_count(self):
+        return self.company_routes.filter(is_active=True).count()
+
+    @property
     def monthly_subscription(self):
-        return Subscription.calculate_price(self.vehicle_count)
+        subscription = getattr(self, 'subscription', None)
+        if not subscription:
+            return Subscription.calculate_price(0)
+        routes = subscription.billable_route_count
+        return Subscription.calculate_price(routes)
 
 
 class UserProfile(models.Model):
@@ -71,32 +79,77 @@ class UserProfile(models.Model):
         return self.role == self.ROLE_DRIVER
 
 
+class SubscriptionTariff(models.Model):
+    """Tarifas e dados de pagamento da assinatura."""
+    price_first_route = models.DecimalField(
+        '1ª rota (€/mês)', max_digits=8, decimal_places=2, default=Decimal('20.00'),
+        validators=[MinValueValidator(Decimal('0'))],
+    )
+    price_additional_route = models.DecimalField(
+        'Rota adicional (€/mês)', max_digits=8, decimal_places=2, default=Decimal('5.00'),
+        validators=[MinValueValidator(Decimal('0'))],
+    )
+    mbway_phone = models.CharField('Número MB Way', max_length=20, blank=True)
+    iban = models.CharField('IBAN', max_length=34, blank=True)
+    iban_holder = models.CharField('Titular da conta', max_length=200, blank=True)
+    payment_notification_email = models.EmailField(
+        'Email para avisos de pagamento', blank=True,
+        help_text='Recebe alerta quando um cliente informa que pagou.',
+    )
+
+    class Meta:
+        verbose_name = 'Tarifa de Assinatura'
+        verbose_name_plural = 'Tarifa de Assinatura'
+
+    def __str__(self):
+        return 'Tarifas da assinatura'
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
 class Subscription(models.Model):
     STATUS_ACTIVE = 'active'
     STATUS_TRIAL = 'trial'
+    STATUS_PENDING = 'pending'
     STATUS_SUSPENDED = 'suspended'
     STATUS_CANCELLED = 'cancelled'
     STATUS_CHOICES = [
         (STATUS_ACTIVE, 'Ativa'),
         (STATUS_TRIAL, 'Período Experimental'),
+        (STATUS_PENDING, 'Pagamento Pendente'),
         (STATUS_SUSPENDED, 'Suspensa'),
         (STATUS_CANCELLED, 'Cancelada'),
     ]
 
-    BASE_PRICE = Decimal('20.00')
-    ADDITIONAL_VEHICLE_PRICE = Decimal('5.00')
+    PAYMENT_MBWAY = 'mbway'
+    PAYMENT_TRANSFER = 'transfer'
+    PAYMENT_METHOD_CHOICES = [
+        (PAYMENT_MBWAY, 'MB Way'),
+        (PAYMENT_TRANSFER, 'Transferência bancária'),
+    ]
 
     organization = models.OneToOneField(
         Organization, on_delete=models.CASCADE, related_name='subscription'
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_TRIAL)
     start_date = models.DateField(default=timezone.now)
-    trial_end_date = models.DateField(null=True, blank=True)
+    contracted_routes = models.PositiveIntegerField(
+        'Rotas contratadas', null=True, blank=True,
+    )
+    payment_method = models.CharField(
+        'Forma de pagamento', max_length=20, choices=PAYMENT_METHOD_CHOICES, blank=True,
+    )
+    payment_reported_at = models.DateTimeField(
+        'Pagamento informado em', null=True, blank=True,
+    )
     stripe_customer_id = models.CharField(max_length=255, blank=True)
     stripe_subscription_id = models.CharField(max_length=255, blank=True)
     current_period_end = models.DateTimeField(null=True, blank=True)
     last_payment_date = models.DateField(null=True, blank=True)
-    notes = models.TextField(blank=True)
+    notes = models.TextField('Observações', blank=True)
 
     class Meta:
         verbose_name = 'Assinatura'
@@ -105,15 +158,30 @@ class Subscription(models.Model):
     def __str__(self):
         return f'{self.organization.name} - {self.get_status_display()}'
 
+    @property
+    def billable_route_count(self):
+        if self.contracted_routes:
+            return self.contracted_routes
+        return self.organization.route_count
+
     @classmethod
-    def calculate_price(cls, vehicle_count):
-        if vehicle_count <= 0:
-            return cls.BASE_PRICE
-        return cls.BASE_PRICE + (vehicle_count - 1) * cls.ADDITIONAL_VEHICLE_PRICE
+    def calculate_price(cls, route_count):
+        tariff = SubscriptionTariff.get()
+        if route_count <= 0:
+            return tariff.price_first_route
+        return tariff.price_first_route + (route_count - 1) * tariff.price_additional_route
 
     @property
     def monthly_price(self):
-        return self.calculate_price(self.organization.vehicle_count)
+        return self.calculate_price(self.billable_route_count)
+
+    @property
+    def is_unlimited_trial(self):
+        return self.status == self.STATUS_TRIAL
+
+    @property
+    def payment_reported(self):
+        return self.payment_reported_at is not None
 
 
 class RateConfig(models.Model):
@@ -140,6 +208,17 @@ class RateConfig(models.Model):
 
 
 class Vehicle(models.Model):
+    FUEL_GASOLINA = 'gasolina'
+    FUEL_GASOLEO = 'gasoleo'
+    FUEL_GAS_NATURAL = 'gas_natural'
+    FUEL_ELETRICO = 'eletrico'
+    FUEL_CHOICES = [
+        (FUEL_GASOLINA, 'Gasolina'),
+        (FUEL_GASOLEO, 'Gasóleo'),
+        (FUEL_GAS_NATURAL, 'Gás Natural'),
+        (FUEL_ELETRICO, 'Elétrico'),
+    ]
+
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name='vehicles'
     )
@@ -147,7 +226,9 @@ class Vehicle(models.Model):
     brand = models.CharField('Marca', max_length=50, blank=True)
     model = models.CharField('Modelo', max_length=50, blank=True)
     year = models.PositiveIntegerField('Ano', null=True, blank=True)
-    fuel_type = models.CharField('Combustível', max_length=30, blank=True)
+    fuel_type = models.CharField(
+        'Combustível', max_length=20, choices=FUEL_CHOICES, blank=True,
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -160,6 +241,33 @@ class Vehicle(models.Model):
     def __str__(self):
         return self.plate
 
+    def get_delete_blockers(self):
+        """Motivos que impedem eliminar o veículo (referências noutras tabelas)."""
+        blockers = []
+        routes = self.routes.count()
+        if routes:
+            blockers.append(f'{routes} atribuição(ões) de rota em produção')
+        comparisons = self.comparisons.count()
+        if comparisons:
+            blockers.append(f'{comparisons} comparação(ões) diária(s)')
+        fuel = self.fuel_records.count()
+        if fuel:
+            blockers.append(f'{fuel} registo(s) de combustível')
+        expenses = self.expenses.count()
+        if expenses:
+            blockers.append(f'{expenses} despesa(s)')
+        events = self.stop_events.count()
+        if events:
+            blockers.append(f'{events} evento(s) registado(s) pelo motorista')
+        drivers = self.default_drivers.count()
+        if drivers:
+            blockers.append(f'{drivers} motorista(s) com este veículo padrão')
+        return blockers
+
+    @property
+    def can_be_deleted(self):
+        return not self.get_delete_blockers()
+
 
 class Driver(models.Model):
     organization = models.ForeignKey(
@@ -169,6 +277,7 @@ class Driver(models.Model):
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name='driver_profile'
     )
     name = models.CharField('Nome', max_length=200)
+    nif = models.CharField('NIF', max_length=9, unique=True)
     email = models.EmailField(blank=True)
     phone = models.CharField('Telefone', max_length=20, blank=True)
     license_number = models.CharField('Carta de Condução', max_length=30, blank=True)
@@ -186,11 +295,89 @@ class Driver(models.Model):
     def __str__(self):
         return self.name
 
+    def get_delete_blockers(self):
+        blockers = []
+        routes = self.routes.count()
+        if routes:
+            blockers.append(f'{routes} atribuição(ões) de rota em produção')
+        comparisons = self.comparisons.count()
+        if comparisons:
+            blockers.append(f'{comparisons} comparação(ões) diária(s)')
+        fuel = self.fuel_records.count()
+        if fuel:
+            blockers.append(f'{fuel} registo(s) de combustível')
+        events = self.stop_events.count()
+        if events:
+            blockers.append(f'{events} evento(s) registado(s) na app')
+        return blockers
+
+    @property
+    def can_be_deleted(self):
+        return not self.get_delete_blockers()
+
+
+class CompanyRoute(models.Model):
+    """Catálogo de rotas de uma empresa contratante (ex: LIS-01, POR-Norte)."""
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='company_routes'
+    )
+    delivery_company = models.ForeignKey(
+        'DeliveryCompany', on_delete=models.CASCADE, related_name='company_routes',
+    )
+    name = models.CharField('Nome / Código da Rota', max_length=100)
+    price_per_stop = models.DecimalField(
+        'Preço por Parada (€)', max_digits=8, decimal_places=2, default=Decimal('1.50'),
+        validators=[MinValueValidator(Decimal('0'))],
+    )
+    price_per_pudo = models.DecimalField(
+        'Preço por PUDO (€)', max_digits=8, decimal_places=2, default=Decimal('0.80'),
+        validators=[MinValueValidator(Decimal('0'))],
+    )
+    price_per_pickup = models.DecimalField(
+        'Preço por Recolha (€)', max_digits=8, decimal_places=2, default=Decimal('1.20'),
+        validators=[MinValueValidator(Decimal('0'))],
+    )
+    daily_rate = models.DecimalField(
+        'Diária (€)', max_digits=8, decimal_places=2, default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0'))],
+    )
+    revenue_account = models.ForeignKey(
+        'FinancialAccount', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='company_routes', verbose_name='Plano de conta (Receita)',
+        limit_choices_to={'account_type': 'revenue'},
+    )
+    notes = models.TextField('Observações', blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Rota da Empresa'
+        verbose_name_plural = 'Rotas da Empresa'
+        ordering = ['delivery_company__name', 'name']
+        unique_together = ['organization', 'delivery_company', 'name']
+
+    def __str__(self):
+        return f'{self.delivery_company.name} — {self.name}'
+
+    def get_delete_blockers(self):
+        assignments = self.assignments.count()
+        if assignments:
+            return [f'{assignments} atribuição(ões) em produção']
+        return []
+
+    @property
+    def can_be_deleted(self):
+        return not self.get_delete_blockers()
+
 
 class Route(models.Model):
-    """Rota diária: serviço num dia com motorista e veículo específicos."""
+    """Atribuição diária: execução de uma rota com motorista e veículo específicos."""
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name='routes'
+    )
+    company_route = models.ForeignKey(
+        CompanyRoute, on_delete=models.PROTECT, related_name='assignments',
+        null=True, blank=True,
     )
     name = models.CharField('Nome / Código da Rota', max_length=100)
     date = models.DateField('Data')
@@ -209,17 +396,36 @@ class Route(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        verbose_name = 'Rota'
-        verbose_name_plural = 'Rotas'
+        verbose_name = 'Atribuição de Rota'
+        verbose_name_plural = 'Atribuições de Rota'
         ordering = ['-date', 'name']
         unique_together = ['organization', 'name', 'date']
 
     def __str__(self):
         return f'{self.name} — {self.date.strftime("%d/%m/%Y")}'
 
+    def sync_from_company_route(self):
+        if self.company_route:
+            self.name = self.company_route.name
+            self.delivery_company = self.company_route.delivery_company
+            self.organization = self.company_route.organization
+
+    def save(self, *args, **kwargs):
+        self.sync_from_company_route()
+        super().save(*args, **kwargs)
+
     @property
     def label(self):
-        return f'{self.name} ({self.date.strftime("%d/%m/%Y")}) — {self.driver.name} / {self.vehicle.plate}'
+        company = self.delivery_company.name if self.delivery_company else '—'
+        return (
+            f'{company} / {self.name} ({self.date.strftime("%d/%m/%Y")})'
+            f' — {self.driver.name} / {self.vehicle.plate}'
+        )
+
+    @property
+    def can_be_deleted(self):
+        from stop_check.services.production_service import assignment_has_production_data
+        return not assignment_has_production_data(self)
 
 
 class DailyComparison(models.Model):
@@ -248,6 +454,29 @@ class DailyComparison(models.Model):
     company_pudo = models.PositiveIntegerField('PUDO (Empresa)', default=0)
     company_pickups = models.PositiveIntegerField('Recolhas (Empresa)', default=0)
 
+    DATA_PENDING = 'pending'
+    DATA_FILLED = 'filled'
+    DATA_STATUS_CHOICES = [
+        (DATA_PENDING, 'Pendente'),
+        (DATA_FILLED, 'Registado'),
+    ]
+
+    driver_data_status = models.CharField(
+        'Estado dados motorista', max_length=20,
+        choices=DATA_STATUS_CHOICES, default=DATA_PENDING,
+    )
+    driver_data_locked = models.BooleanField(
+        'Dados motorista bloqueados', default=False,
+        help_text='Quando activo, o motorista não pode alterar os seus dados.',
+    )
+    driver_submitted_at = models.DateTimeField(
+        'Registo motorista concluído em', null=True, blank=True,
+    )
+    company_data_status = models.CharField(
+        'Estado dados empresa', max_length=20,
+        choices=DATA_STATUS_CHOICES, default=DATA_PENDING,
+    )
+
     notes = models.TextField('Observações', blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -268,6 +497,22 @@ class DailyComparison(models.Model):
             self.vehicle = self.route.vehicle
             self.date = self.route.date
             self.organization = self.route.organization
+
+    def refresh_data_statuses(self):
+        self.driver_data_status = (
+            self.DATA_FILLED if self.driver_total > 0 else self.DATA_PENDING
+        )
+        self.company_data_status = (
+            self.DATA_FILLED if self.company_total > 0 else self.DATA_PENDING
+        )
+
+    @property
+    def driver_can_edit(self):
+        return not self.driver_data_locked
+
+    def save(self, *args, **kwargs):
+        self.refresh_data_statuses()
+        super().save(*args, **kwargs)
 
     @property
     def driver_total(self):
@@ -301,35 +546,43 @@ class DailyComparison(models.Model):
             or self.diff_pickups != 0
         )
 
-    def calculate_revenue(self, rate_config):
+    def get_rates(self):
+        from .utils import get_comparison_rates
+        return get_comparison_rates(self)
+
+    def calculate_revenue(self, rates=None):
+        rates = rates or self.get_rates()
         return (
-            self.driver_stops * rate_config.price_per_stop
-            + self.driver_pudo * rate_config.price_per_pudo
-            + self.driver_pickups * rate_config.price_per_pickup
+            self.driver_stops * rates.price_per_stop
+            + self.driver_pudo * rates.price_per_pudo
+            + self.driver_pickups * rates.price_per_pickup
+            + rates.daily_rate
         )
 
-    def calculate_company_revenue(self, rate_config):
+    def calculate_company_revenue(self, rates=None):
+        rates = rates or self.get_rates()
         return (
-            self.company_stops * rate_config.price_per_stop
-            + self.company_pudo * rate_config.price_per_pudo
-            + self.company_pickups * rate_config.price_per_pickup
+            self.company_stops * rates.price_per_stop
+            + self.company_pudo * rates.price_per_pudo
+            + self.company_pickups * rates.price_per_pickup
+            + rates.daily_rate
         )
 
-    def calculate_diff_amounts(self, rate_config):
-        """Valor monetário da diferença por tipo (tarifas da assinatura)."""
+    def calculate_diff_amounts(self, rates=None):
+        """Valor monetário da diferença por tipo (tarifas da rota)."""
+        rates = rates or self.get_rates()
         return {
-            'stops': Decimal(self.diff_stops) * rate_config.price_per_stop,
-            'pudo': Decimal(self.diff_pudo) * rate_config.price_per_pudo,
-            'pickups': Decimal(self.diff_pickups) * rate_config.price_per_pickup,
+            'stops': Decimal(self.diff_stops) * rates.price_per_stop,
+            'pudo': Decimal(self.diff_pudo) * rates.price_per_pudo,
+            'pickups': Decimal(self.diff_pickups) * rates.price_per_pickup,
         }
 
-    def calculate_diff_revenue(self, rate_config):
-        amounts = self.calculate_diff_amounts(rate_config)
+    def calculate_diff_revenue(self, rates=None):
+        amounts = self.calculate_diff_amounts(rates)
         return amounts['stops'] + amounts['pudo'] + amounts['pickups']
 
     def get_diff_amounts(self):
-        from .utils import get_or_create_rate_config
-        return self.calculate_diff_amounts(get_or_create_rate_config(self.organization))
+        return self.calculate_diff_amounts()
 
     def get_diff_revenue_total(self):
         amounts = self.get_diff_amounts()
@@ -354,6 +607,10 @@ class FuelRecord(models.Model):
         'Preço/Litro (€)', max_digits=6, decimal_places=3,
         validators=[MinValueValidator(Decimal('0.001'))]
     )
+    total_cost = models.DecimalField(
+        'Valor Total (€)', max_digits=10, decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+    )
     odometer = models.PositiveIntegerField('Quilometragem', null=True, blank=True)
     station = models.CharField('Posto', max_length=100, blank=True)
     notes = models.TextField('Observações', blank=True)
@@ -367,33 +624,57 @@ class FuelRecord(models.Model):
     def __str__(self):
         return f'{self.vehicle.plate} - {self.date.strftime("%d/%m/%Y")}'
 
-    @property
-    def total_cost(self):
-        return self.liters * self.price_per_liter
 
+class FinancialAccount(models.Model):
+    TYPE_EXPENSE = 'expense'
+    TYPE_REVENUE = 'revenue'
+    TYPE_CHOICES = [
+        (TYPE_EXPENSE, 'Despesa'),
+        (TYPE_REVENUE, 'Receita'),
+    ]
 
-class ExpenseCategory(models.Model):
     organization = models.ForeignKey(
-        Organization, on_delete=models.CASCADE, related_name='expense_categories'
+        Organization, on_delete=models.CASCADE, related_name='financial_accounts'
     )
     name = models.CharField('Nome', max_length=100)
     color = models.CharField('Cor', max_length=7, default='#64748b')
+    account_type = models.CharField(
+        'Tipo', max_length=10, choices=TYPE_CHOICES, default=TYPE_EXPENSE,
+    )
 
     class Meta:
-        verbose_name = 'Categoria de Despesa'
-        verbose_name_plural = 'Categorias de Despesas'
+        verbose_name = 'Plano de Conta'
+        verbose_name_plural = 'Plano de Contas'
         unique_together = ['organization', 'name']
 
     def __str__(self):
         return self.name
+
+    def get_delete_blockers(self):
+        blockers = []
+        expenses = self.expenses.count()
+        if expenses:
+            blockers.append(f'{expenses} despesa(s)')
+        revenues = self.revenues.count()
+        if revenues:
+            blockers.append(f'{revenues} receita(s)')
+        routes = self.company_routes.count()
+        if routes:
+            blockers.append(f'{routes} rota(s) no catálogo')
+        return blockers
+
+    @property
+    def can_be_deleted(self):
+        return not self.get_delete_blockers()
 
 
 class Expense(models.Model):
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name='expenses'
     )
-    category = models.ForeignKey(
-        ExpenseCategory, on_delete=models.SET_NULL, null=True, blank=True, related_name='expenses'
+    account = models.ForeignKey(
+        FinancialAccount, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='expenses', verbose_name='Plano de conta',
     )
     vehicle = models.ForeignKey(
         Vehicle, on_delete=models.SET_NULL, null=True, blank=True, related_name='expenses'
@@ -416,6 +697,57 @@ class Expense(models.Model):
         return f'{self.description} - {self.amount}€'
 
 
+class Revenue(models.Model):
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name='revenues'
+    )
+    comparison = models.OneToOneField(
+        DailyComparison, on_delete=models.CASCADE, related_name='revenue_entry',
+        null=True, blank=True,
+    )
+    account = models.ForeignKey(
+        FinancialAccount, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='revenues', verbose_name='Plano de conta',
+    )
+    vehicle = models.ForeignKey(
+        Vehicle, on_delete=models.SET_NULL, null=True, blank=True, related_name='revenues',
+    )
+    route = models.ForeignKey(
+        Route, on_delete=models.SET_NULL, null=True, blank=True, related_name='revenues',
+    )
+    date = models.DateField('Data')
+    description = models.CharField('Descrição', max_length=255)
+    amount = models.DecimalField(
+        'Valor (€)', max_digits=10, decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))],
+    )
+    notes = models.TextField('Observações', blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Receita'
+        verbose_name_plural = 'Receitas'
+        ordering = ['-date', '-created_at']
+
+    def __str__(self):
+        return f'{self.description} - {self.amount}€'
+
+    @property
+    def is_manual(self):
+        return self.comparison_id is None
+
+    @property
+    def display_vehicle(self):
+        if self.vehicle_id:
+            return self.vehicle
+        if self.comparison_id and self.comparison.vehicle_id:
+            return self.comparison.vehicle
+        if self.route_id and self.route.vehicle_id:
+            return self.route.vehicle
+        return None
+
+
 class DeliveryCompany(models.Model):
     """Empresa contratante de entregas (ex: GLS, DPD, etc.)."""
     organization = models.ForeignKey(
@@ -434,6 +766,23 @@ class DeliveryCompany(models.Model):
 
     def __str__(self):
         return self.name
+
+    def get_delete_blockers(self):
+        blockers = []
+        catalog = self.company_routes.count()
+        if catalog:
+            blockers.append(f'{catalog} rota(s) no catálogo (elimine-as primeiro)')
+        assignments = self.routes.count()
+        if assignments:
+            blockers.append(f'{assignments} atribuição(ões) em produção')
+        imports = self.imports.count()
+        if imports:
+            blockers.append(f'{imports} importação(ões) de ficheiros')
+        return blockers
+
+    @property
+    def can_be_deleted(self):
+        return not self.get_delete_blockers()
 
 
 class StopEvent(models.Model):

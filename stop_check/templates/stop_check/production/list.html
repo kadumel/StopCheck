@@ -1,0 +1,290 @@
+{% extends 'stop_check/base.html' %}
+
+{% block title %}Produção — StopCheck{% endblock %}
+
+{% block messages %}{% endblock %}
+
+{% block header %}
+<div class="flex items-center gap-3">
+    <a href="?year={{ prev_year }}&month={{ prev_month }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}" class="p-2 rounded-lg hover:bg-slate-100 text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <h2 class="text-lg font-semibold text-slate-800">Produção — {{ month_name }} {{ year }}</h2>
+    <a href="?year={{ next_year }}&month={{ next_month }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}" class="p-2 rounded-lg hover:bg-slate-100 text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </a>
+</div>
+{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'route_create' %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">
+    Atribuir Rota
+</a>
+{% endblock %}
+
+{% block content %}
+<div id="production-toast" class="hidden mb-4 px-4 py-3 rounded-lg text-sm border flex items-start justify-between gap-3" role="alert">
+    <span id="production-toast-msg" class="flex-1"></span>
+    <button type="button" id="production-toast-close" class="shrink-0 text-current opacity-60 hover:opacity-100 text-lg leading-none" aria-label="Fechar">&times;</button>
+</div>
+
+<p class="text-sm text-slate-500 mb-4">
+    Gestão das rotas a executar — atribuições diárias com motorista e veículo.
+    <a href="{% url 'route_list' %}" class="text-brand-600 hover:underline">Gerir empresas e catálogo de rotas</a>
+</p>
+
+<form method="get" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-4">
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="month" value="{{ month }}">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+        <div>
+            <label for="filter-rota" class="block text-xs font-medium text-slate-600 mb-1">Rota</label>
+            <select id="filter-rota" name="rota" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                <option value="">Todas</option>
+                {% for cr in company_routes %}
+                <option value="{{ cr.pk }}" {% if filters.rota == cr.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ cr.delivery_company.name }} — {{ cr.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="filter-motorista" class="block text-xs font-medium text-slate-600 mb-1">Motorista</label>
+            <select id="filter-motorista" name="motorista" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                <option value="">Todos</option>
+                {% for driver in drivers %}
+                <option value="{{ driver.pk }}" {% if filters.motorista == driver.pk|stringformat:"s" %}selected{% endif %}>{{ driver.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="filter-veiculo" class="block text-xs font-medium text-slate-600 mb-1">Veículo</label>
+            <select id="filter-veiculo" name="veiculo" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                <option value="">Todos</option>
+                {% for vehicle in vehicles %}
+                <option value="{{ vehicle.pk }}" {% if filters.veiculo == vehicle.pk|stringformat:"s" %}selected{% endif %}>{{ vehicle.plate }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="filter-status" class="block text-xs font-medium text-slate-600 mb-1">Estado</label>
+            <select id="filter-status" name="status" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                <option value="">Todos</option>
+                <option value="driver_pending" {% if filters.status == 'driver_pending' %}selected{% endif %}>Meus dados pendentes</option>
+                <option value="company_pending" {% if filters.status == 'company_pending' %}selected{% endif %}>Dados empresa pendentes</option>
+                <option value="any_pending" {% if filters.status == 'any_pending' %}selected{% endif %}>Qualquer pendente</option>
+                <option value="complete" {% if filters.status == 'complete' %}selected{% endif %}>Completos</option>
+            </select>
+        </div>
+        <div>
+            <label for="filter-dia" class="block text-xs font-medium text-slate-600 mb-1">Dia</label>
+            <input type="date" id="filter-dia" name="dia" value="{{ filters.dia }}"
+                   class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="flex-1 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">
+                Filtrar
+            </button>
+            <a href="?year={{ year }}&month={{ month }}" class="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition">
+                Limpar
+            </a>
+        </div>
+    </div>
+</form>
+
+{% if assignments %}
+<form method="post" action="{% url 'route_bulk_delete' %}" id="bulk-form">
+    {% csrf_token %}
+    <input type="hidden" name="return_query" value="year={{ year }}&month={{ month }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}">
+{% endif %}
+
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+    {% if assignments %}
+    <div class="px-4 py-2 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+        <span class="text-xs text-slate-500">
+            {{ assignments|length }} atribuiç{{ assignments|length|pluralize:"ão,ões" }}
+            {% if has_filters %} (filtrado){% endif %}
+        </span>
+        <button type="submit" id="bulk-delete-btn" disabled
+                class="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition disabled:opacity-40 disabled:cursor-not-allowed">
+            Eliminar seleccionadas
+        </button>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-slate-50">
+                <tr class="text-left text-slate-500">
+                    <th class="px-4 py-3 w-10 text-center">
+                        <input type="checkbox" id="select-all-deletable" title="Seleccionar todas (sem dados)"
+                               class="w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500">
+                    </th>
+                    <th class="px-4 py-3 font-medium">Data</th>
+                    <th class="px-4 py-3 font-medium">Empresa</th>
+                    <th class="px-4 py-3 font-medium">Rota</th>
+                    <th class="px-4 py-3 font-medium">Motorista</th>
+                    <th class="px-4 py-3 font-medium">Veículo</th>
+                    <th class="px-4 py-3 font-medium text-center">Dados motorista</th>
+                    <th class="px-4 py-3 font-medium text-center">Dados empresa</th>
+                    <th class="px-4 py-3 font-medium text-center">Estado</th>
+                    <th class="px-4 py-3 font-medium text-center">Ações</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for assignment in assignments %}
+                <tr class="hover:bg-slate-50 {% if not assignment.can_be_deleted %}opacity-90{% endif %}">
+                    <td class="px-4 py-3 text-center">
+                        {% if assignment.can_be_deleted %}
+                        <input type="checkbox" name="selected" value="{{ assignment.pk }}"
+                               class="row-checkbox w-4 h-4 text-emerald-600 border-slate-300 rounded focus:ring-emerald-500">
+                        {% else %}
+                        <span class="text-slate-300" title="Tem dados de produção registados">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 font-medium">{{ assignment.date|date:"d/m/Y" }}</td>
+                    <td class="px-4 py-3 text-slate-600">{{ assignment.delivery_company.name|default:"—" }}</td>
+                    <td class="px-4 py-3 font-medium text-brand-700">{{ assignment.name }}</td>
+                    <td class="px-4 py-3">{{ assignment.driver.name }}</td>
+                    <td class="px-4 py-3 text-slate-500">{{ assignment.vehicle.plate }}</td>
+                    <td class="px-4 py-3 text-center">
+                        {% if assignment.comparison %}
+                        {% include 'stop_check/components/data_status_badge.html' with status=assignment.comparison.driver_data_status label=assignment.comparison.get_driver_data_status_display %}
+                        {% else %}
+                        <span class="text-xs text-slate-400">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        {% if assignment.comparison %}
+                        {% include 'stop_check/components/data_status_badge.html' with status=assignment.comparison.company_data_status label=assignment.comparison.get_company_data_status_display %}
+                        {% else %}
+                        <span class="text-xs text-slate-400">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="px-2 py-1 text-xs rounded-full {% if assignment.is_active %}bg-emerald-100 text-emerald-700{% else %}bg-slate-100 text-slate-500{% endif %}">
+                            {% if assignment.is_active %}Ativa{% else %}Inativa{% endif %}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-center whitespace-nowrap">
+                        {% if assignment.comparison %}
+                        <a href="{% url 'comparison_edit' assignment.comparison.pk %}" class="text-blue-600 hover:text-blue-800 hover:underline">Comparar</a>
+                        <span class="text-slate-300 mx-1">·</span>
+                        {% endif %}
+                        <a href="{% url 'route_edit' assignment.pk %}" class="text-brand-600 hover:underline">Editar</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-16 px-4">
+        {% if has_filters %}
+        <p class="text-slate-500 mb-4">Nenhuma atribuição encontrada com os filtros seleccionados.</p>
+        <a href="?year={{ year }}&month={{ month }}" class="inline-flex px-6 py-3 text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition">Limpar filtros</a>
+        {% else %}
+        <p class="text-slate-500 mb-4">Nenhuma rota atribuída em {{ month_name }} {{ year }}.</p>
+        <a href="{% url 'route_create' %}" class="inline-flex px-6 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition">Atribuir Rota</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+{% if assignments %}
+</form>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function hideProductionToast() {
+    const el = document.getElementById('production-toast');
+    if (!el) return;
+    clearTimeout(el._hideTimer);
+    el.classList.add('hidden');
+}
+
+function showProductionToast(type, message) {
+    const el = document.getElementById('production-toast');
+    const msgEl = document.getElementById('production-toast-msg');
+    if (!el || !msgEl || !message) return;
+
+    const styles = {
+        success: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+        error: 'bg-red-50 text-red-800 border-red-200',
+        warning: 'bg-amber-50 text-amber-800 border-amber-200',
+        info: 'bg-blue-50 text-blue-800 border-blue-200',
+    };
+
+    el.className = `mb-4 px-4 py-3 rounded-lg text-sm border flex items-start justify-between gap-3 ${styles[type] || styles.info}`;
+    msgEl.textContent = message;
+    el.classList.remove('hidden');
+
+    clearTimeout(el._hideTimer);
+    const delay = type === 'success' ? 8000 : 15000;
+    el._hideTimer = setTimeout(hideProductionToast, delay);
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    document.getElementById('production-toast-close')?.addEventListener('click', hideProductionToast);
+
+    const params = new URLSearchParams(window.location.search);
+    const notice = params.get('notice');
+    const msg = params.get('notice_msg');
+    if (notice && msg) {
+        showProductionToast(notice, msg);
+        params.delete('notice');
+        params.delete('notice_msg');
+        const qs = params.toString();
+        history.replaceState({}, '', window.location.pathname + (qs ? '?' + qs : ''));
+    }
+});
+</script>
+{% if assignments %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const selectAll = document.getElementById('select-all-deletable');
+    const checkboxes = document.querySelectorAll('.row-checkbox');
+    const bulkBtn = document.getElementById('bulk-delete-btn');
+    const form = document.getElementById('bulk-form');
+
+    function updateBulkBtn() {
+        const checked = document.querySelectorAll('.row-checkbox:checked').length;
+        bulkBtn.disabled = checked === 0;
+        bulkBtn.textContent = checked
+            ? `Eliminar seleccionadas (${checked})`
+            : 'Eliminar seleccionadas';
+    }
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            checkboxes.forEach(cb => { cb.checked = selectAll.checked; });
+            updateBulkBtn();
+        });
+    }
+
+    checkboxes.forEach(cb => cb.addEventListener('change', function () {
+        if (selectAll) {
+            const all = [...checkboxes];
+            selectAll.checked = all.length > 0 && all.every(c => c.checked);
+            selectAll.indeterminate = all.some(c => c.checked) && !selectAll.checked;
+        }
+        updateBulkBtn();
+    }));
+
+    form.addEventListener('submit', function (e) {
+        const checked = document.querySelectorAll('.row-checkbox:checked').length;
+        if (checked === 0) {
+            e.preventDefault();
+            showProductionToast('warning', 'Nenhuma atribuição seleccionada.');
+            return;
+        }
+        if (!confirm(`Eliminar ${checked} atribuição(ões)? Esta acção não pode ser desfeita.`)) {
+            e.preventDefault();
+        }
+    });
+
+    updateBulkBtn();
+});
+</script>
+{% endif %}
+{% endblock %}

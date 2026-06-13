@@ -5,7 +5,7 @@ from datetime import datetime
 
 from django.utils import timezone
 
-from stop_check.models import DailyComparison, Driver, ImportBatch, Route
+from stop_check.models import CompanyRoute, DailyComparison, Driver, ImportBatch, Route
 
 
 COLUMN_ALIASES = {
@@ -161,6 +161,14 @@ def process_import_batch(batch):
                 raise ValueError(f'Motorista sem veículo: {driver.name}')
 
             route_name = str(row.get('route', '')).strip() or driver.name
+            company_route = None
+            if batch.delivery_company_id:
+                company_route, _ = CompanyRoute.objects.get_or_create(
+                    organization=org,
+                    delivery_company_id=batch.delivery_company_id,
+                    name=route_name,
+                )
+
             route, _ = Route.objects.get_or_create(
                 organization=org,
                 name=route_name,
@@ -168,8 +176,13 @@ def process_import_batch(batch):
                 defaults={
                     'driver': driver,
                     'vehicle': vehicle,
+                    'company_route': company_route,
+                    'delivery_company_id': batch.delivery_company_id,
                 },
             )
+            if company_route and not route.company_route_id:
+                route.company_route = company_route
+                route.save(update_fields=['company_route', 'delivery_company'])
             if route.driver_id != driver.id:
                 raise ValueError(
                     f'Rota "{route_name}" em {date_val} já atribuída a outro motorista'

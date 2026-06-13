@@ -2,16 +2,68 @@
 
 {% block title %}Combustível — StopCheck{% endblock %}
 
-{% block header %}<h2 class="text-lg font-semibold text-slate-800">Combustível — {{ month_name }} {{ year }}</h2>{% endblock %}
+{% block header %}
+<div class="flex items-center gap-3">
+    <a href="?year={{ prev_year }}&month={{ prev_month }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}" class="p-2 rounded-lg hover:bg-slate-100 text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    </a>
+    <h2 class="text-lg font-semibold text-slate-800">Combustível — {{ month_name }} {{ year }}</h2>
+    <a href="?year={{ next_year }}&month={{ next_month }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}" class="p-2 rounded-lg hover:bg-slate-100 text-slate-600">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+    </a>
+</div>
+{% endblock %}
 
 {% block header_actions %}
 <a href="{% url 'fuel_create' %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">Novo Abastecimento</a>
 {% endblock %}
 
 {% block content %}
+<form method="get" class="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-4">
+    <input type="hidden" name="year" value="{{ year }}">
+    <input type="hidden" name="month" value="{{ month }}">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+        <div>
+            <label for="filter-motorista" class="block text-xs font-medium text-slate-600 mb-1">Motorista</label>
+            <select id="filter-motorista" name="motorista" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                <option value="">Todos</option>
+                {% for driver in drivers %}
+                <option value="{{ driver.pk }}" {% if filters.motorista == driver.pk|stringformat:"s" %}selected{% endif %}>{{ driver.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="filter-veiculo" class="block text-xs font-medium text-slate-600 mb-1">Veículo</label>
+            <select id="filter-veiculo" name="veiculo" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+                <option value="">Todos</option>
+                {% for vehicle in vehicles %}
+                <option value="{{ vehicle.pk }}" {% if filters.veiculo == vehicle.pk|stringformat:"s" %}selected{% endif %}>{{ vehicle.plate }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label for="filter-dia" class="block text-xs font-medium text-slate-600 mb-1">Dia</label>
+            <input type="date" id="filter-dia" name="dia" value="{{ filters.dia }}"
+                   class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none">
+        </div>
+        <div class="flex gap-2">
+            <button type="submit" class="flex-1 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">
+                Filtrar
+            </button>
+            <a href="?year={{ year }}&month={{ month }}" class="px-4 py-2 text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition">
+                Limpar
+            </a>
+        </div>
+    </div>
+</form>
+
 <div class="bg-brand-50 border border-brand-100 rounded-xl p-4 mb-6">
-    <p class="text-sm text-brand-700">Total do mês: <span class="font-bold text-lg">{{ total|floatformat:2 }} €</span></p>
+    <p class="text-sm text-brand-700">
+        Total{% if has_filters %} (filtrado){% endif %}: <span class="font-bold text-lg">{{ total|floatformat:2 }} €</span>
+        {% if records %} · {{ records|length }} registo(s){% endif %}
+    </p>
 </div>
+
 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
     {% if records %}
     <div class="overflow-x-auto">
@@ -19,6 +71,7 @@
             <thead class="bg-slate-50">
                 <tr class="text-left text-slate-500">
                     <th class="px-4 py-3 font-medium">Data</th>
+                    <th class="px-4 py-3 font-medium">Motorista</th>
                     <th class="px-4 py-3 font-medium">Veículo</th>
                     <th class="px-4 py-3 font-medium">Litros</th>
                     <th class="px-4 py-3 font-medium">€/L</th>
@@ -31,6 +84,7 @@
                 {% for record in records %}
                 <tr class="hover:bg-slate-50">
                     <td class="px-4 py-3">{{ record.date|date:"d/m/Y" }}</td>
+                    <td class="px-4 py-3">{{ record.driver.name|default:"—" }}</td>
                     <td class="px-4 py-3 font-medium">{{ record.vehicle.plate }}</td>
                     <td class="px-4 py-3">{{ record.liters }} L</td>
                     <td class="px-4 py-3">{{ record.price_per_liter|floatformat:3 }} €</td>
@@ -48,9 +102,14 @@
         </table>
     </div>
     {% else %}
-    <div class="text-center py-16">
-        <p class="text-slate-500 mb-4">Sem registos de combustível este mês.</p>
+    <div class="text-center py-16 px-4">
+        {% if has_filters %}
+        <p class="text-slate-500 mb-4">Nenhum abastecimento encontrado com os filtros seleccionados.</p>
+        <a href="?year={{ year }}&month={{ month }}" class="inline-flex px-6 py-3 text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition">Limpar filtros</a>
+        {% else %}
+        <p class="text-slate-500 mb-4">Sem registos de combustível em {{ month_name }} {{ year }}.</p>
         <a href="{% url 'fuel_create' %}" class="inline-flex px-6 py-3 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition">Registar Abastecimento</a>
+        {% endif %}
     </div>
     {% endif %}
 </div>

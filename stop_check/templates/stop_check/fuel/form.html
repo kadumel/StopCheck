@@ -10,8 +10,11 @@
         {% csrf_token %}
         {% for field in form %}
         <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">{{ field.label }}</label>
+            <label class="block text-sm font-medium text-slate-700 mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
             {{ field }}
+            {% if field.name == 'total_cost' %}
+            <p class="text-xs text-slate-500 mt-1">Calculado automaticamente a partir dos litros e preço; pode ajustar para corrigir cêntimos.</p>
+            {% endif %}
             {% if field.errors %}<p class="text-red-500 text-xs mt-1">{{ field.errors.0 }}</p>{% endif %}
         </div>
         {% endfor %}
@@ -21,4 +24,42 @@
         </div>
     </form>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const liters = document.getElementById('id_liters');
+    const price = document.getElementById('id_price_per_liter');
+    const total = document.getElementById('id_total_cost');
+    if (!liters || !price || !total) return;
+
+    let totalEdited = total.value.trim() !== '';
+
+    total.addEventListener('input', function() {
+        totalEdited = true;
+    });
+
+    function recalcTotal() {
+        const l = parseFloat(String(liters.value).replace(',', '.'));
+        const p = parseFloat(String(price.value).replace(',', '.'));
+        if (!totalEdited && !isNaN(l) && !isNaN(p) && l > 0 && p > 0) {
+            total.value = (l * p).toFixed(2);
+        }
+    }
+
+    liters.addEventListener('input', function() {
+        totalEdited = false;
+        recalcTotal();
+    });
+    price.addEventListener('input', function() {
+        totalEdited = false;
+        recalcTotal();
+    });
+
+    if (!totalEdited) {
+        recalcTotal();
+    }
+})();
+</script>
 {% endblock %}

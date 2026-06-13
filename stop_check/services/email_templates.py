@@ -51,3 +51,45 @@ def build_verification_email(email, code, organization_name, first_name):
         'organization_name': organization_name,
         'first_name': display_name,
     }
+
+
+def build_payment_report_email(subscription, notify_email):
+    org = subscription.organization
+    amount = subscription.monthly_price
+    method_label = subscription.get_payment_method_display()
+
+    assunto = f'Pagamento informado — {org.name} | StopCheck'
+
+    texto = (
+        f'A empresa {org.name} informou que efectuou o pagamento da assinatura.\n\n'
+        f'Email: {org.email}\n'
+        f'Telefone: {org.phone or "—"}\n'
+        f'NIF: {org.nif or "—"}\n'
+        f'Rotas contratadas: {subscription.contracted_routes}\n'
+        f'Valor mensal: {amount:.2f} €\n'
+        f'Forma de pagamento: {method_label}\n\n'
+        f'Confirme o recebimento no banco e active a assinatura no admin do StopCheck.\n'
+    )
+
+    html = render_to_string('stop_check/emails/payment_report_email.html', {
+        'assunto': assunto,
+        'organization': org,
+        'subscription': subscription,
+        'amount': amount,
+        'method_label': method_label,
+    })
+
+    return {
+        'para': [notify_email],
+        'assunto': assunto,
+        'texto': texto,
+        'html': html,
+        'cc': [],
+        'bcc': [],
+        'reply_to': [org.email] if org.email else [],
+        'organization_name': org.name,
+        'organization_email': org.email,
+        'contracted_routes': subscription.contracted_routes,
+        'amount': str(amount),
+        'payment_method': subscription.payment_method,
+    }

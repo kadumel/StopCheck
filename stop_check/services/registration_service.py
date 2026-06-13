@@ -1,11 +1,9 @@
-from datetime import timedelta
-
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import User
 from django.utils import timezone
 
 from stop_check.models import (
-    ExpenseCategory,
+    FinancialAccount,
     Organization,
     RateConfig,
     Subscription,
@@ -47,8 +45,7 @@ def create_account_from_payload(payload):
         email=payload['email'],
         phone=payload.get('phone', ''),
     )
-    trial_end = timezone.now().date() + timedelta(days=14)
-    Subscription.objects.create(organization=org, trial_end_date=trial_end)
+    Subscription.objects.create(organization=org)
     RateConfig.objects.create(organization=org)
     UserProfile.objects.create(
         user=user,
@@ -56,14 +53,17 @@ def create_account_from_payload(payload):
         role=UserProfile.ROLE_ADMIN,
         phone=payload.get('phone', ''),
     )
-    default_categories = [
-        ('Manutenção', '#ef4444'),
-        ('Seguro', '#3b82f6'),
-        ('Portagens', '#f59e0b'),
-        ('Estacionamento', '#8b5cf6'),
-        ('Outros', '#64748b'),
+    default_accounts = [
+        ('Manutenção', '#ef4444', FinancialAccount.TYPE_EXPENSE),
+        ('Seguro', '#3b82f6', FinancialAccount.TYPE_EXPENSE),
+        ('Portagens', '#f59e0b', FinancialAccount.TYPE_EXPENSE),
+        ('Estacionamento', '#8b5cf6', FinancialAccount.TYPE_EXPENSE),
+        ('Outros', '#64748b', FinancialAccount.TYPE_EXPENSE),
+        ('Entregas', '#059669', FinancialAccount.TYPE_REVENUE),
     ]
-    for name, color in default_categories:
-        ExpenseCategory.objects.create(organization=org, name=name, color=color)
+    for name, color, account_type in default_accounts:
+        FinancialAccount.objects.create(
+            organization=org, name=name, color=color, account_type=account_type,
+        )
 
     return user

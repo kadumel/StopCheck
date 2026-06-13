@@ -1,11 +1,26 @@
 {% extends 'stop_check/mobile/base_mobile.html' %}
 
 {% block content %}
-<p class="text-slate-400 text-sm mb-4">{{ today|date:"l, d \d\e F \d\e Y" }}</p>
+{% if is_catch_up %}
+<div class="bg-amber-900/40 border border-amber-600/50 rounded-xl p-4 mb-4">
+    <p class="text-amber-200 text-sm font-medium">Registo pendente de {{ work_date|date:"d/m/Y" }}</p>
+    <p class="text-amber-100/80 text-xs mt-1">
+        Conclua este dia antes de registar {{ today|date:"d/m/Y" }}.
+        {% if pending_past_count > 1 %} ({{ pending_past_count }} dias por encerrar){% endif %}
+    </p>
+</div>
+{% endif %}
+<p class="text-slate-400 text-sm mb-4">
+    {% if is_catch_up %}
+    A registar: <span class="text-white font-medium">{{ work_date|date:"l, d \d\e F \d\e Y" }}</span>
+    {% else %}
+    {{ today|date:"l, d \d\e F \d\e Y" }}
+    {% endif %}
+</p>
 
 {% if today_routes|length > 1 %}
 <div class="mb-6">
-    <label class="block text-xs text-slate-400 mb-2">Rota de hoje</label>
+    <label class="block text-xs text-slate-400 mb-2">{% if is_catch_up %}Rota desse dia{% else %}Rota de hoje{% endif %}</label>
     <div class="space-y-2">
         {% for route in today_routes %}
         <a href="?rota={{ route.pk }}"
@@ -21,56 +36,59 @@
 {% endif %}
 
 {% if comparison %}
-<div class="grid grid-cols-3 gap-3 mb-6">
-    <div class="bg-slate-800 rounded-2xl p-4 text-center border border-slate-700">
-        <p class="text-3xl font-bold text-brand-400" id="count-stops">{{ comparison.driver_stops }}</p>
-        <p class="text-xs text-slate-400 mt-1">Paradas</p>
+{% if comparison.driver_data_locked %}
+<div class="bg-slate-700/50 border border-slate-600 rounded-xl p-4 mb-4 text-center">
+    <p class="text-slate-200 text-sm font-medium">Registo concluído</p>
+    <p class="text-slate-400 text-xs mt-1">Os dados estão bloqueados. Contacte o gestor para alterar.</p>
+    {% if comparison.driver_submitted_at %}
+    <p class="text-slate-500 text-xs mt-2">Concluído às {{ comparison.driver_submitted_at|time:"H:i" }}</p>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="grid grid-cols-3 gap-3 mb-4 {% if comparison.driver_data_locked %}opacity-80{% endif %}" id="count-panel">
+    <div class="bg-slate-800 rounded-2xl p-3 border border-slate-700">
+        <p class="text-xs text-slate-400 text-center mb-2">Paradas</p>
+        <div class="flex items-center gap-1">
+            <button type="button" class="count-btn tap-btn flex-shrink-0 w-9 h-9 rounded-lg bg-slate-700 hover:bg-slate-600 text-lg font-bold leading-none" data-action="decrement" data-type="stop" aria-label="Menos parada" {% if comparison.driver_data_locked %}disabled{% endif %}>−</button>
+            <input type="number" id="count-stops" min="0" step="1" inputmode="numeric"
+                   value="{{ comparison.driver_stops }}"
+                   class="count-input w-full min-w-0 text-center text-xl font-bold text-brand-400 bg-slate-900/60 border border-slate-600 rounded-lg py-1.5 focus:outline-none focus:border-brand-500"
+                   {% if comparison.driver_data_locked %}readonly{% endif %}>
+            <button type="button" class="count-btn tap-btn flex-shrink-0 w-9 h-9 rounded-lg bg-brand-600 hover:bg-brand-500 text-lg font-bold leading-none" data-action="increment" data-type="stop" aria-label="Mais parada" {% if comparison.driver_data_locked %}disabled{% endif %}>+</button>
+        </div>
     </div>
-    <div class="bg-slate-800 rounded-2xl p-4 text-center border border-slate-700">
-        <p class="text-3xl font-bold text-brand-400" id="count-pudo">{{ comparison.driver_pudo }}</p>
-        <p class="text-xs text-slate-400 mt-1">PUDO</p>
+    <div class="bg-slate-800 rounded-2xl p-3 border border-slate-700">
+        <p class="text-xs text-slate-400 text-center mb-2">PUDO</p>
+        <div class="flex items-center gap-1">
+            <button type="button" class="count-btn tap-btn flex-shrink-0 w-9 h-9 rounded-lg bg-slate-700 hover:bg-slate-600 text-lg font-bold leading-none" data-action="decrement" data-type="pudo" aria-label="Menos PUDO" {% if comparison.driver_data_locked %}disabled{% endif %}>−</button>
+            <input type="number" id="count-pudo" min="0" step="1" inputmode="numeric"
+                   value="{{ comparison.driver_pudo }}"
+                   class="count-input w-full min-w-0 text-center text-xl font-bold text-brand-400 bg-slate-900/60 border border-slate-600 rounded-lg py-1.5 focus:outline-none focus:border-brand-500"
+                   {% if comparison.driver_data_locked %}readonly{% endif %}>
+            <button type="button" class="count-btn tap-btn flex-shrink-0 w-9 h-9 rounded-lg bg-brand-600 hover:bg-brand-500 text-lg font-bold leading-none" data-action="increment" data-type="pudo" aria-label="Mais PUDO" {% if comparison.driver_data_locked %}disabled{% endif %}>+</button>
+        </div>
     </div>
-    <div class="bg-slate-800 rounded-2xl p-4 text-center border border-slate-700">
-        <p class="text-3xl font-bold text-brand-400" id="count-pickups">{{ comparison.driver_pickups }}</p>
-        <p class="text-xs text-slate-400 mt-1">Recolhas</p>
+    <div class="bg-slate-800 rounded-2xl p-3 border border-slate-700">
+        <p class="text-xs text-slate-400 text-center mb-2">Recolhas</p>
+        <div class="flex items-center gap-1">
+            <button type="button" class="count-btn tap-btn flex-shrink-0 w-9 h-9 rounded-lg bg-slate-700 hover:bg-slate-600 text-lg font-bold leading-none" data-action="decrement" data-type="pickup" aria-label="Menos recolha" {% if comparison.driver_data_locked %}disabled{% endif %}>−</button>
+            <input type="number" id="count-pickups" min="0" step="1" inputmode="numeric"
+                   value="{{ comparison.driver_pickups }}"
+                   class="count-input w-full min-w-0 text-center text-xl font-bold text-brand-400 bg-slate-900/60 border border-slate-600 rounded-lg py-1.5 focus:outline-none focus:border-brand-500"
+                   {% if comparison.driver_data_locked %}readonly{% endif %}>
+            <button type="button" class="count-btn tap-btn flex-shrink-0 w-9 h-9 rounded-lg bg-brand-600 hover:bg-brand-500 text-lg font-bold leading-none" data-action="increment" data-type="pickup" aria-label="Mais recolha" {% if comparison.driver_data_locked %}disabled{% endif %}>+</button>
+        </div>
     </div>
 </div>
 
-<div class="space-y-3 mb-8">
-    <button type="button" data-type="stop" class="tap-btn w-full py-6 rounded-2xl bg-brand-600 hover:bg-brand-500 font-bold text-xl shadow-lg shadow-brand-900/50 log-btn" {% if not comparison %}disabled{% endif %}>
-        + Parada
-    </button>
-    <button type="button" data-type="pudo" class="tap-btn w-full py-5 rounded-2xl bg-slate-700 hover:bg-slate-600 font-semibold text-lg log-btn" {% if not comparison %}disabled{% endif %}>
-        + Ponto PUDO
-    </button>
-    <button type="button" data-type="pickup" class="tap-btn w-full py-5 rounded-2xl bg-slate-700 hover:bg-slate-600 font-semibold text-lg log-btn" {% if not comparison %}disabled{% endif %}>
-        + Recolha
-    </button>
-</div>
-
-{% if comparison.has_discrepancy or comparison.company_total > 0 %}
-{% with da=comparison.get_diff_amounts %}
-<div class="bg-amber-900/30 border border-amber-700/50 rounded-xl p-4 mb-6">
-    <p class="text-amber-300 text-sm font-medium mb-2">Comparativo com empresa</p>
-    <div class="grid grid-cols-3 gap-2 text-center text-xs">
-        <div>
-            <p class="text-amber-400/70 mb-1">Stops</p>
-            <p class="text-white mb-1">{{ comparison.driver_stops }} / {{ comparison.company_stops }}</p>
-            {% include 'stop_check/components/diff_cell.html' with value=comparison.diff_stops amount=da.stops %}
-        </div>
-        <div>
-            <p class="text-amber-400/70 mb-1">PUDO</p>
-            <p class="text-white mb-1">{{ comparison.driver_pudo }} / {{ comparison.company_pudo }}</p>
-            {% include 'stop_check/components/diff_cell.html' with value=comparison.diff_pudo amount=da.pudo %}
-        </div>
-        <div>
-            <p class="text-amber-400/70 mb-1">Recolhas</p>
-            <p class="text-white mb-1">{{ comparison.driver_pickups }} / {{ comparison.company_pickups }}</p>
-            {% include 'stop_check/components/diff_cell.html' with value=comparison.diff_pickups amount=da.pickups %}
-        </div>
-    </div>
-</div>
-{% endwith %}
+{% if not comparison.driver_data_locked %}
+<p class="text-xs text-slate-500 text-center mb-4">Use +/− ou digite o valor directamente no campo.</p>
+<button type="button" id="submit-data-btn" class="tap-btn w-full py-4 mb-6 rounded-2xl bg-brand-600 hover:bg-brand-500 font-semibold text-lg shadow-lg shadow-brand-900/40">
+    Concluir registo
+</button>
+{% else %}
+<p class="text-xs text-slate-500 text-center mb-6">Registo bloqueado para edição.</p>
 {% endif %}
 {% else %}
 <div class="bg-slate-800 rounded-2xl p-6 text-center border border-slate-700 mb-6">
@@ -93,36 +111,164 @@
 
 {% block extra_js %}
 <script>
-const csrf = '{{ csrf_token }}';
-document.querySelectorAll('.log-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-        btn.disabled = true;
+(async function() {
+    const apiUrl = '{% url "driver_log_event" %}';
+    const submitUrl = '{% url "driver_submit_data" %}';
+    {% if comparison %}
+    const routeId = '{{ comparison.route_id }}';
+    const comparisonId = '{{ comparison.pk }}';
+    {% else %}
+    const routeId = null;
+    const comparisonId = null;
+    {% endif %}
+    let isLocked = {% if comparison and comparison.driver_data_locked %}true{% else %}false{% endif %};
+
+    const stopsEl = document.getElementById('count-stops');
+    const pudoEl = document.getElementById('count-pudo');
+    const pickupsEl = document.getElementById('count-pickups');
+    const submitBtn = document.getElementById('submit-data-btn');
+    if (!stopsEl) return;
+
+    try {
+        await refreshDriverCsrf();
+    } catch (e) {
+        console.error(e);
+    }
+
+    function setLockedUI(locked) {
+        isLocked = locked;
+        document.querySelectorAll('.count-btn').forEach((btn) => {
+            btn.disabled = locked;
+        });
+        [stopsEl, pudoEl, pickupsEl].forEach((input) => {
+            input.readOnly = locked;
+        });
+        const submitBtn = document.getElementById('submit-data-btn');
+        if (submitBtn) submitBtn.disabled = locked;
+    }
+
+    function applyCounts(data) {
+        stopsEl.value = data.stops;
+        pudoEl.value = data.pudo;
+        pickupsEl.value = data.pickups;
+        if (data.locked) setLockedUI(true);
+        if (navigator.vibrate) navigator.vibrate(20);
+    }
+
+    async function postCounts(body) {
+        if (isLocked) return null;
         const fd = new FormData();
-        fd.append('event_type', btn.dataset.type);
-        {% if selected_route %}fd.append('route_id', '{{ selected_route.pk }}');{% endif %}
-        try {
-            const res = await fetch('{% url "driver_log_event" %}', {
-                method: 'POST',
-                headers: { 'X-CSRFToken': csrf },
-                body: fd,
-            });
-            const data = await res.json();
-            if (!data.ok && data.error) {
-                alert(data.error);
+        if (routeId) fd.append('route_id', routeId);
+        Object.entries(body).forEach(([k, v]) => fd.append(k, v));
+        const res = await fetch(apiUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: fd,
+        });
+        if (res.status === 403) {
+            const data = await res.json().catch(() => ({}));
+            if (data.locked) {
+                setLockedUI(true);
+                alert(data.error || 'Registo concluído. Contacte o gestor para alterar.');
+                return null;
             }
-            if (data.ok) {
-                document.getElementById('count-stops').textContent = data.stops;
-                document.getElementById('count-pudo').textContent = data.pudo;
-                document.getElementById('count-pickups').textContent = data.pickups;
-                if (navigator.vibrate) navigator.vibrate(30);
-            }
-        } finally {
-            btn.disabled = false;
+            alert('Sessão expirada. Recarregue a página.');
+            return null;
         }
+        const data = await res.json();
+        if (!data.ok) {
+            alert(data.error || 'Erro ao actualizar.');
+            return null;
+        }
+        return data;
+    }
+
+    document.querySelectorAll('.count-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            if (isLocked) return;
+            btn.disabled = true;
+            try {
+                const data = await postCounts({
+                    action: btn.dataset.action,
+                    event_type: btn.dataset.type,
+                });
+                if (data) applyCounts(data);
+            } finally {
+                if (!isLocked) btn.disabled = false;
+            }
+        });
     });
-});
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/static/sw.js').catch(() => {});
-}
+
+    let syncTimer = null;
+    function scheduleSync() {
+        if (isLocked) return;
+        clearTimeout(syncTimer);
+        syncTimer = setTimeout(syncFromInputs, 600);
+    }
+
+    async function syncFromInputs() {
+        const data = await postCounts({
+            action: 'set',
+            stops: Math.max(0, parseInt(stopsEl.value, 10) || 0),
+            pudo: Math.max(0, parseInt(pudoEl.value, 10) || 0),
+            pickups: Math.max(0, parseInt(pickupsEl.value, 10) || 0),
+        });
+        if (data) applyCounts(data);
+    }
+
+    [stopsEl, pudoEl, pickupsEl].forEach(input => {
+        input.addEventListener('input', scheduleSync);
+        input.addEventListener('blur', () => {
+            if (isLocked) return;
+            clearTimeout(syncTimer);
+            syncFromInputs();
+        });
+    });
+
+    if (submitBtn) {
+        submitBtn.addEventListener('click', async () => {
+            if (isLocked) return;
+            if (!comparisonId && !routeId) {
+                alert('Seleccione uma rota antes de concluir.');
+                return;
+            }
+            if (!confirm('Concluir o registo do dia?\n\nDepois de concluir não poderá alterar os dados sem autorização do gestor.')) {
+                return;
+            }
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'A concluir…';
+            try {
+                const fd = new FormData();
+                if (comparisonId) fd.append('comparison_id', comparisonId);
+                if (routeId) fd.append('route_id', routeId);
+                const res = await fetch(submitUrl, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: fd,
+                });
+                let data;
+                try {
+                    data = await res.json();
+                } catch {
+                    alert('Resposta inválida do servidor. Recarregue a página.');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Concluir registo';
+                    return;
+                }
+                if (!data.ok) {
+                    alert(data.error || 'Erro ao concluir registo.');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Concluir registo';
+                    return;
+                }
+                window.location.href = '{% url "driver_app" %}';
+            } catch {
+                alert('Erro ao concluir registo. Verifique a ligação.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Concluir registo';
+            }
+        });
+    }
+})();
 </script>
 {% endblock %}

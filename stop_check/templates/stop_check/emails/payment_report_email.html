@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head><meta charset="utf-8"><title>{{ assunto }}</title></head>
+<body style="font-family: sans-serif; color: #334155; line-height: 1.5;">
+    <h2 style="color: #059669;">Pagamento de assinatura informado</h2>
+    <p>A empresa <strong>{{ organization.name }}</strong> indicou que efectuou o pagamento.</p>
+    <table style="border-collapse: collapse; margin: 16px 0;">
+        <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Email</td><td>{{ organization.email }}</td></tr>
+        <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Telefone</td><td>{{ organization.phone|default:"—" }}</td></tr>
+        <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Rotas</td><td>{{ subscription.contracted_routes }}</td></tr>
+        <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Valor</td><td><strong>{{ amount|floatformat:2 }} €</strong></td></tr>
+        <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Pagamento</td><td>{{ method_label }}</td></tr>
+    </table>
+    <p style="color: #64748b; font-size: 14px;">Confirme no banco e active a assinatura no admin do StopCheck.</p>
+</body>
+</html>
