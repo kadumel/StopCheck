@@ -15,22 +15,34 @@
 {% endblock %}
 
 {% block header_actions %}
-<a href="{% url 'comparison_list' %}?year={{ year }}&month={{ month }}" class="hidden sm:inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition">
-    Comparações
-</a>
-<a href="{% url 'export_excel' %}?year={{ year }}&month={{ month }}" class="hidden sm:inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition">
-    Excel
-</a>
-<a href="{% url 'export_pdf' %}?year={{ year }}&month={{ month }}" target="_blank" class="hidden sm:inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition">
-    PDF
-</a>
-<a href="{% url 'comparison_create' %}" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition">
-    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-    Nova Comparação
-</a>
+<div class="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+    <a href="{% url 'comparison_list' %}?year={{ year }}&month={{ month }}" class="inline-flex items-center px-2 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition whitespace-nowrap">
+        <span class="sm:hidden">Lista</span>
+        <span class="hidden sm:inline">Comparações</span>
+    </a>
+    <a href="{% url 'export_excel' %}?year={{ year }}&month={{ month }}" class="hidden sm:inline-flex items-center px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition whitespace-nowrap">
+        Excel
+    </a>
+    <a href="{% url 'export_pdf' %}?year={{ year }}&month={{ month }}" target="_blank" class="hidden sm:inline-flex items-center px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition whitespace-nowrap">
+        PDF
+    </a>
+    <a href="{% url 'comparison_create' %}" class="inline-flex items-center gap-1 sm:gap-2 px-2 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700 transition whitespace-nowrap">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        <span class="hidden sm:inline">Nova Comparação</span>
+        <span class="sm:hidden">Nova</span>
+    </a>
+</div>
 {% endblock %}
 
 {% block content %}
+<div class="grid grid-cols-2 gap-2 mb-4 sm:hidden">
+    <a href="{% url 'export_excel' %}?year={{ year }}&month={{ month }}" class="inline-flex items-center justify-center px-4 py-3 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition shadow-sm">
+        Exportar Excel
+    </a>
+    <a href="{% url 'export_pdf' %}?year={{ year }}&month={{ month }}" target="_blank" class="inline-flex items-center justify-center px-4 py-3 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition shadow-sm">
+        Exportar PDF
+    </a>
+</div>
 <!-- Stats cards -->
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
     <div class="bg-white rounded-xl p-5 shadow-sm border border-slate-200">
