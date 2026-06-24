@@ -64,12 +64,29 @@
     </p>
 </div>
 
+{% if expenses %}
+<form method="post" action="{% url 'expense_bulk_delete' %}?year={{ year }}&month={{ month }}{% for key, value in filter_params.items %}&{{ key }}={{ value }}{% endfor %}" id="bulk-expense-form">
+    {% csrf_token %}
+{% endif %}
+
 <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
     {% if expenses %}
+    <div class="px-4 py-2 bg-slate-50 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+        <label class="inline-flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+            <input type="checkbox" id="select-all-expenses" class="w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500">
+            Seleccionar todos
+        </label>
+        <button type="submit" id="bulk-delete-expenses" disabled
+                onclick="return confirm('Eliminar as despesas seleccionadas?')"
+                class="px-3 py-1.5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition disabled:opacity-40 disabled:cursor-not-allowed">
+            Eliminar seleccionadas
+        </button>
+    </div>
     <div class="overflow-x-auto">
         <table class="w-full text-sm">
             <thead class="bg-slate-50">
                 <tr class="text-left text-slate-500">
+                    <th class="px-4 py-3 w-10"></th>
                     <th class="px-4 py-3 font-medium">Data</th>
                     <th class="px-4 py-3 font-medium">Descrição</th>
                     <th class="px-4 py-3 font-medium">Plano de conta</th>
@@ -81,6 +98,10 @@
             <tbody class="divide-y divide-slate-100">
                 {% for expense in expenses %}
                 <tr class="hover:bg-slate-50">
+                    <td class="px-4 py-3">
+                        <input type="checkbox" name="selected" value="{{ expense.pk }}"
+                               class="row-checkbox w-4 h-4 text-brand-600 border-slate-300 rounded focus:ring-brand-500">
+                    </td>
                     <td class="px-4 py-3">{{ expense.date|date:"d/m/Y" }}</td>
                     <td class="px-4 py-3 font-medium">{{ expense.description }}</td>
                     <td class="px-4 py-3">
@@ -111,4 +132,35 @@
     </div>
     {% endif %}
 </div>
+
+{% if expenses %}
+</form>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const checkboxes = Array.from(document.querySelectorAll('.row-checkbox'));
+    const selectAll = document.getElementById('select-all-expenses');
+    const bulkBtn = document.getElementById('bulk-delete-expenses');
+    if (!checkboxes.length) return;
+
+    function updateBulkBtn() {
+        const n = checkboxes.filter(c => c.checked).length;
+        bulkBtn.disabled = n === 0;
+        if (selectAll) {
+            selectAll.checked = n > 0 && n === checkboxes.length;
+            selectAll.indeterminate = n > 0 && n < checkboxes.length;
+        }
+    }
+
+    checkboxes.forEach(cb => cb.addEventListener('change', updateBulkBtn));
+    selectAll?.addEventListener('change', function() {
+        checkboxes.forEach(cb => { cb.checked = selectAll.checked; });
+        updateBulkBtn();
+    });
+    updateBulkBtn();
+})();
+</script>
 {% endblock %}

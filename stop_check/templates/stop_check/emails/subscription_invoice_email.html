@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head><meta charset="utf-8"><title>{{ assunto }}</title></head>
+<body style="font-family: system-ui, sans-serif; color: #1e293b; line-height: 1.5;">
+  <p>Olá,</p>
+  <p>A cobrança da assinatura StopCheck de <strong>{{ organization.name }}</strong> está disponível.</p>
+  <table style="margin: 1rem 0; border-collapse: collapse;">
+    <tr><td style="padding: 0.25rem 1rem 0.25rem 0; color: #64748b;">Tipo</td><td>{{ invoice.get_invoice_type_display }}</td></tr>
+    <tr><td style="padding: 0.25rem 1rem 0.25rem 0; color: #64748b;">Período</td><td>{{ period_label }}</td></tr>
+    <tr><td style="padding: 0.25rem 1rem 0.25rem 0; color: #64748b;">Rotas</td><td>{{ invoice.route_count }}</td></tr>
+    <tr><td style="padding: 0.25rem 1rem 0.25rem 0; color: #64748b;">Valor</td><td><strong>{{ invoice.amount }} €</strong></td></tr>
+    <tr><td style="padding: 0.25rem 1rem 0.25rem 0; color: #64748b;">Pagar até</td><td>{{ invoice.due_date|date:"d/m/Y" }}</td></tr>
+  </table>
+  {% if tariff.mbway_phone %}
+  <p>MB Way: <strong>{{ tariff.mbway_phone }}</strong></p>
+  {% endif %}
+  {% if tariff.iban %}
+  <p>IBAN: <strong>{{ tariff.iban }}</strong>{% if tariff.iban_holder %} ({{ tariff.iban_holder }}){% endif %}</p>
+  {% endif %}
+  <p style="color: #64748b; font-size: 0.875rem;">O pagamento é antecipado. Após o dia limite, o acesso poderá ser bloqueado.</p>
+  <p>StopCheck</p>
+</body>
+</html>

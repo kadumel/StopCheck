@@ -3,6 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#059669">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="StopCheck">
+    <meta name="description" content="Controlo de entregas e produtividade">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" href="/static/Favicon.svg" type="image/svg+xml">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/icons/icon-192.png">
+    <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
     <title>{% block title %}StopCheck{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -38,15 +47,18 @@
 </head>
 <body class="bg-slate-100 min-h-screen">
     {% if user.is_authenticated %}
+    {% if user.profile %}
     <div class="flex min-h-screen">
         <!-- Sidebar -->
         <aside id="sidebar" class="no-print fixed inset-y-0 left-0 z-50 w-64 bg-surface-900 text-white transform -translate-x-full lg:translate-x-0 transition-transform duration-200 ease-in-out">
-            <div class="flex items-center gap-3 px-6 py-5 border-b border-slate-700">
-                <div class="w-10 h-10 rounded-xl bg-brand-500 flex items-center justify-center font-bold text-lg">S</div>
-                <div>
-                    <h1 class="font-bold text-lg leading-tight">StopCheck</h1>
-                    <p class="text-xs text-slate-400 truncate max-w-[160px]">{{ user.profile.organization.name }}</p>
-                </div>
+            <div class="border-b border-slate-700 h-14 p-0 m-0 overflow-hidden">
+                <a href="{% url 'dashboard' %}" class="block w-full h-full p-0 m-0 leading-none">
+                    <img
+                        src="/static/Logo1.svg"
+                        alt="StopCheck"
+                        class="block w-full h-full object-contain object-left p-0 m-0"
+                    >
+                </a>
             </div>
             <nav class="px-3 py-4 space-y-1 overflow-y-auto max-h-[calc(100vh-8rem)]">
                 {% include 'stop_check/components/nav_items.html' %}
@@ -73,7 +85,7 @@
 
         <!-- Main content -->
         <div class="flex-1 lg:ml-64">
-            <header class="no-print sticky top-0 z-30 bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
+            <header class="no-print sticky top-0 z-30 bg-white border-b border-slate-200 h-14 px-4 flex items-center justify-between">
                 <button onclick="toggleSidebar()" class="lg:hidden p-2 rounded-lg hover:bg-slate-100">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
                 </button>
@@ -86,15 +98,7 @@
             </header>
             <main class="p-4 md:p-6">
                 {% block messages %}
-                {% if messages %}
-                <div class="mb-4 space-y-2">
-                    {% for message in messages %}
-                    <div class="px-4 py-3 rounded-lg text-sm {% if message.tags == 'success' %}bg-emerald-50 text-emerald-800 border border-emerald-200{% elif message.tags == 'error' %}bg-red-50 text-red-800 border border-red-200{% else %}bg-blue-50 text-blue-800 border border-blue-200{% endif %}">
-                        {{ message }}
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endif %}
+                {% include 'stop_check/components/flash_messages.html' %}
                 {% endblock %}
                 {% block content %}{% endblock %}
             </main>
@@ -107,8 +111,29 @@
         }
     </script>
     {% else %}
+    <main class="p-4 md:p-6 min-h-screen">
+        <div class="max-w-lg mx-auto">
+            {% include 'stop_check/components/flash_messages.html' %}
+        </div>
+        {% block setup_content %}{% endblock %}
+    </main>
+    {% endif %}
+    {% else %}
     {% block auth_content %}{% endblock %}
     {% endif %}
     {% block extra_js %}{% endblock %}
+    {% if user.is_authenticated and user.profile %}
+    <script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+            navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                .then(function (registration) {
+                    registration.update();
+                })
+                .catch(function () {});
+        });
+    }
+    </script>
+    {% endif %}
 </body>
 </html>

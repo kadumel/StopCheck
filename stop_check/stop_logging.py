@@ -65,8 +65,12 @@ def assert_can_work_on_route(organization, driver, route):
 
 def assert_driver_can_edit(comp):
     if comp.driver_data_locked:
+        if comp.driver_submitted_at:
+            raise DriverDataLockedError(
+                'Registo concluído. Contacte o gestor para alterar os dados.'
+            )
         raise DriverDataLockedError(
-            'Registo concluído. Contacte o gestor para alterar os dados.'
+            'O gestor preencheu os dados deste dia. Contacte-o para alterar.'
         )
 
 
@@ -75,6 +79,13 @@ def submit_driver_data(comp):
         return comp
     comp.driver_data_locked = True
     comp.driver_submitted_at = timezone.now()
+    comp.save()
+    return comp
+
+
+def lock_driver_data_by_admin(comp):
+    comp.driver_data_locked = True
+    comp.driver_submitted_at = None
     comp.save()
     return comp
 

@@ -18,7 +18,11 @@
             <div class="text-right">
             <p class="text-brand-400 font-semibold text-sm">{{ comp.driver_total }} ops</p>
             {% if comp.driver_data_locked %}
-            <span class="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">Bloqueado</span>
+            {% if comp.driver_locked_by_admin %}
+            <span class="text-xs px-2 py-0.5 rounded-full bg-blue-900/60 text-blue-300">Preenchido pelo gestor</span>
+            {% else %}
+            <span class="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">Concluído</span>
+            {% endif %}
             {% elif comp.date < today %}
             <span class="text-xs px-2 py-0.5 rounded-full bg-amber-900/60 text-amber-300">Pendente</span>
             {% endif %}

@@ -6,7 +6,7 @@
 
 {% block content %}
 <div class="max-w-lg">
-    <form method="post" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
+    <form method="post" autocomplete="off" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-4">
         {% csrf_token %}
 
         {% for field in form %}
@@ -43,4 +43,19 @@
         </div>
     </form>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const nameField = document.getElementById('id_name');
+    if (!nameField) return;
+    function focusName() {
+        nameField.focus({ preventScroll: true });
+    }
+    focusName();
+    requestAnimationFrame(focusName);
+    setTimeout(focusName, 100);
+});
+</script>
 {% endblock %}

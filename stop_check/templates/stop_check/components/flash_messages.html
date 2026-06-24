@@ -1,0 +1,9 @@
+{% if messages %}
+<div class="mb-4 space-y-2">
+    {% for message in messages %}
+    <div class="px-4 py-3 rounded-lg text-sm {% if message.tags == 'success' %}bg-emerald-50 text-emerald-800 border border-emerald-200{% elif message.tags == 'error' %}bg-red-50 text-red-800 border border-red-200{% else %}bg-blue-50 text-blue-800 border border-blue-200{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

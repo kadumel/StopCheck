@@ -1,4 +1,6 @@
-from decimal import Decimal
+import calendar
+from datetime import date, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator
@@ -7,8 +9,31 @@ from django.db.models import Sum
 from django.utils import timezone
 
 
+class ContractingCompany(models.Model):
+    """Empresa contratante de entregas (catálogo global para registo)."""
+    name = models.CharField('Nome', max_length=200, unique=True)
+    sort_order = models.PositiveSmallIntegerField('Ordem', default=0)
+    is_active = models.BooleanField('Ativa', default=True)
+
+    class Meta:
+        verbose_name = 'Empresa Contratante'
+        verbose_name_plural = 'Empresas Contratantes'
+        ordering = ['sort_order', 'name']
+
+    def __str__(self):
+        return self.name
+
+
 class Organization(models.Model):
     name = models.CharField('Nome da Empresa', max_length=200)
+    contracting_company = models.ForeignKey(
+        'ContractingCompany',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='organizations',
+        verbose_name='Empresa Contratante',
+    )
     nif = models.CharField('NIF', max_length=20, blank=True)
     email = models.EmailField()
     phone = models.CharField('Telefone', max_length=20, blank=True)
@@ -30,6 +55,10 @@ class Organization(models.Model):
 
     @property
     def route_count(self):
+        return self.company_routes.filter(is_active=True, pending_payment=False).count()
+
+    @property
+    def total_route_count(self):
         return self.company_routes.filter(is_active=True).count()
 
     @property
@@ -81,13 +110,23 @@ class UserProfile(models.Model):
 
 class SubscriptionTariff(models.Model):
     """Tarifas e dados de pagamento da assinatura."""
+    trial_days = models.PositiveIntegerField('Dias de trial', default=31)
+    included_routes = models.PositiveIntegerField(
+        'Rotas incluídas no plano base', default=5,
+    )
     price_first_route = models.DecimalField(
-        '1ª rota (€/mês)', max_digits=8, decimal_places=2, default=Decimal('20.00'),
+        'Plano base (€/mês)', max_digits=8, decimal_places=2, default=Decimal('20.00'),
         validators=[MinValueValidator(Decimal('0'))],
+        help_text='Valor mensal que inclui o número de rotas definido acima.',
     )
     price_additional_route = models.DecimalField(
         'Rota adicional (€/mês)', max_digits=8, decimal_places=2, default=Decimal('5.00'),
         validators=[MinValueValidator(Decimal('0'))],
+    )
+    payment_due_day = models.PositiveSmallIntegerField(
+        'Dia limite de pagamento', default=5,
+        validators=[MinValueValidator(1)],
+        help_text='Dia do mês em que o pagamento deve ser efectuado (ex.: 5).',
     )
     mbway_phone = models.CharField('Número MB Way', max_length=20, blank=True)
     iban = models.CharField('IBAN', max_length=34, blank=True)
@@ -135,7 +174,8 @@ class Subscription(models.Model):
         Organization, on_delete=models.CASCADE, related_name='subscription'
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_TRIAL)
-    start_date = models.DateField(default=timezone.now)
+    start_date = models.DateField(default=timezone.localdate)
+    trial_end_date = models.DateField('Fim do trial', null=True, blank=True)
     contracted_routes = models.PositiveIntegerField(
         'Rotas contratadas', null=True, blank=True,
     )
@@ -162,26 +202,241 @@ class Subscription(models.Model):
     def billable_route_count(self):
         if self.contracted_routes:
             return self.contracted_routes
-        return self.organization.route_count
+        return max(self.organization.route_count, 1)
 
     @classmethod
-    def calculate_price(cls, route_count):
-        tariff = SubscriptionTariff.get()
-        if route_count <= 0:
+    def calculate_price(cls, route_count, tariff=None):
+        tariff = tariff or SubscriptionTariff.get()
+        route_count = max(int(route_count or 0), 0)
+        if route_count <= tariff.included_routes:
             return tariff.price_first_route
-        return tariff.price_first_route + (route_count - 1) * tariff.price_additional_route
+        extra = route_count - tariff.included_routes
+        return tariff.price_first_route + extra * tariff.price_additional_route
+
+    @classmethod
+    def calculate_additional_route_price(cls, tariff=None):
+        tariff = tariff or SubscriptionTariff.get()
+        return tariff.price_additional_route
+
+    @classmethod
+    def calculate_prorata(cls, monthly_amount, period_start, period_end):
+        """
+        Valor proporcional: (valor mensal ÷ dias do mês) × dias do período.
+        O período é inclusivo (period_start e period_end contam).
+        """
+        details = cls.calculate_prorata_details(monthly_amount, period_start, period_end)
+        return details['amount']
+
+    @classmethod
+    def calculate_prorata_details(cls, monthly_amount, period_start, period_end):
+        if hasattr(period_start, 'date') and not isinstance(period_start, date):
+            period_start = period_start.date()
+        if hasattr(period_end, 'date') and not isinstance(period_end, date):
+            period_end = period_end.date()
+        if not period_start or not period_end or period_start > period_end:
+            return {
+                'monthly_amount': Decimal(monthly_amount or 0),
+                'days_in_month': 0,
+                'billable_days': 0,
+                'amount': Decimal('0.00'),
+            }
+        days_in_month = calendar.monthrange(period_start.year, period_start.month)[1]
+        billable_days = (period_end - period_start).days + 1
+        amount = (
+            Decimal(monthly_amount) * Decimal(billable_days) / Decimal(days_in_month)
+        ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        return {
+            'monthly_amount': Decimal(monthly_amount),
+            'days_in_month': days_in_month,
+            'billable_days': billable_days,
+            'amount': amount,
+        }
+
+    @classmethod
+    def month_end(cls, value):
+        last_day = calendar.monthrange(value.year, value.month)[1]
+        return date(value.year, value.month, last_day)
+
+    @classmethod
+    def payment_due_date(cls, reference_date, tariff=None):
+        tariff = tariff or SubscriptionTariff.get()
+        return date(reference_date.year, reference_date.month, tariff.payment_due_day)
+
+    @classmethod
+    def calculate_trial_end_date(cls, start_date, trial_days=None):
+        """Último dia do trial (trial_days inclusivos a partir de start_date)."""
+        if trial_days is None:
+            trial_days = SubscriptionTariff.get().trial_days
+        return start_date + timedelta(days=trial_days - 1)
 
     @property
     def monthly_price(self):
         return self.calculate_price(self.billable_route_count)
 
     @property
-    def is_unlimited_trial(self):
-        return self.status == self.STATUS_TRIAL
+    def is_trial_active(self):
+        if self.status != self.STATUS_TRIAL:
+            return False
+        if not self.trial_end_date:
+            return True
+        return timezone.localdate() <= self.trial_end_date
+
+    @property
+    def trial_expired(self):
+        return self.status == self.STATUS_TRIAL and not self.is_trial_active
+
+    @property
+    def has_access(self):
+        if self.status == self.STATUS_ACTIVE:
+            return True
+        if self.is_trial_active:
+            return True
+        return False
 
     @property
     def payment_reported(self):
         return self.payment_reported_at is not None
+
+    def ensure_trial_end_date(self):
+        tariff = SubscriptionTariff.get()
+        expected = self.calculate_trial_end_date(self.start_date, tariff.trial_days)
+        if self.trial_end_date != expected:
+            self.trial_end_date = expected
+            self.save(update_fields=['trial_end_date'])
+
+    def active_paid_routes(self):
+        return self.organization.company_routes.filter(
+            is_active=True, pending_payment=False,
+        )
+
+    @property
+    def available_route_slots(self):
+        from stop_check.services.billing_service import get_catalog_route_limit
+        limit = get_catalog_route_limit(self)
+        if not limit:
+            return None
+        return max(limit - self.organization.route_count, 0)
+
+    def has_pending_route_request(self):
+        return self.route_requests.filter(status='pending').exists()
+
+
+class SubscriptionInvoice(models.Model):
+    TYPE_MONTHLY = 'monthly'
+    TYPE_PRORATA_INITIAL = 'prorata_initial'
+    TYPE_PRORATA_ROUTE = 'prorata_route'
+    TYPE_CHOICES = [
+        (TYPE_MONTHLY, 'Mensalidade'),
+        (TYPE_PRORATA_INITIAL, 'Proporcional (contratação)'),
+        (TYPE_PRORATA_ROUTE, 'Proporcional (rota adicional)'),
+    ]
+
+    STATUS_PENDING = 'pending'
+    STATUS_PAID = 'paid'
+    STATUS_OVERDUE = 'overdue'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pendente'),
+        (STATUS_PAID, 'Pago'),
+        (STATUS_OVERDUE, 'Em atraso'),
+        (STATUS_CANCELLED, 'Cancelada'),
+    ]
+
+    subscription = models.ForeignKey(
+        Subscription, on_delete=models.CASCADE, related_name='invoices',
+    )
+    invoice_type = models.CharField(max_length=20, choices=TYPE_CHOICES)
+    period_start = models.DateField('Início do período')
+    period_end = models.DateField('Fim do período')
+    route_count = models.PositiveIntegerField('Rotas facturadas', default=1)
+    amount = models.DecimalField('Valor (€)', max_digits=10, decimal_places=2)
+    due_date = models.DateField('Data limite de pagamento')
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING,
+    )
+    company_route = models.ForeignKey(
+        'CompanyRoute', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='invoices',
+    )
+    payment_reported_at = models.DateTimeField(null=True, blank=True)
+    paid_at = models.DateField(null=True, blank=True)
+    generated_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField('Observações', blank=True)
+
+    class Meta:
+        verbose_name = 'Cobrança de Assinatura'
+        verbose_name_plural = 'Cobranças de Assinatura'
+        ordering = ['-period_start', '-generated_at']
+
+    def __str__(self):
+        return (
+            f'{self.subscription.organization.name} — '
+            f'{self.get_invoice_type_display()} — {self.amount} €'
+        )
+
+    @property
+    def organization(self):
+        return self.subscription.organization
+
+    @property
+    def payment_reported(self):
+        return self.payment_reported_at is not None
+
+    @property
+    def is_payable(self):
+        return self.status in (self.STATUS_PENDING, self.STATUS_OVERDUE)
+
+    def save(self, *args, **kwargs):
+        old_status = None
+        if self.pk:
+            old_status = (
+                SubscriptionInvoice.objects.filter(pk=self.pk)
+                .values_list('status', flat=True)
+                .first()
+            )
+        super().save(*args, **kwargs)
+        if self.status == self.STATUS_PAID and old_status != self.STATUS_PAID:
+            from stop_check.services.billing_service import activate_subscription_for_invoice
+            activate_subscription_for_invoice(self, self.paid_at)
+
+
+class RouteAdditionRequest(models.Model):
+    STATUS_PENDING = 'pending'
+    STATUS_PAID = 'paid'
+    STATUS_CANCELLED = 'cancelled'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Aguarda pagamento'),
+        (STATUS_PAID, 'Pago — rotas liberadas'),
+        (STATUS_CANCELLED, 'Cancelado'),
+    ]
+
+    subscription = models.ForeignKey(
+        Subscription, on_delete=models.CASCADE, related_name='route_requests',
+    )
+    additional_routes = models.PositiveIntegerField('Rotas adicionais solicitadas')
+    invoice = models.OneToOneField(
+        SubscriptionInvoice, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='route_request',
+    )
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Pedido de Rotas Adicionais'
+        verbose_name_plural = 'Pedidos de Rotas Adicionais'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return (
+            f'{self.subscription.organization.name} — '
+            f'+{self.additional_routes} rota(s)'
+        )
+
+    @property
+    def organization(self):
+        return self.subscription.organization
 
 
 class RateConfig(models.Model):
@@ -343,11 +598,21 @@ class CompanyRoute(models.Model):
     )
     revenue_account = models.ForeignKey(
         'FinancialAccount', on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='company_routes', verbose_name='Plano de conta (Receita)',
+        related_name='company_routes', verbose_name='Plano de conta (Produtividade)',
+        limit_choices_to={'account_type': 'revenue'},
+    )
+    daily_rate_account = models.ForeignKey(
+        'FinancialAccount', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='company_routes_daily_rate',
+        verbose_name='Plano de conta (Diárias)',
         limit_choices_to={'account_type': 'revenue'},
     )
     notes = models.TextField('Observações', blank=True)
     is_active = models.BooleanField(default=True)
+    pending_payment = models.BooleanField(
+        'Aguarda pagamento', default=False,
+        help_text='Rota criada mas inactiva até confirmação do pagamento proporcional.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -358,6 +623,11 @@ class CompanyRoute(models.Model):
 
     def __str__(self):
         return f'{self.delivery_company.name} — {self.name}'
+
+    def activate_after_payment(self):
+        self.pending_payment = False
+        self.is_active = True
+        self.save(update_fields=['pending_payment', 'is_active'])
 
     def get_delete_blockers(self):
         assignments = self.assignments.count()
@@ -476,6 +746,11 @@ class DailyComparison(models.Model):
         'Estado dados empresa', max_length=20,
         choices=DATA_STATUS_CHOICES, default=DATA_PENDING,
     )
+    snapshot_daily_rate = models.DecimalField(
+        'Diária registada (€)', max_digits=8, decimal_places=2,
+        null=True, blank=True,
+        help_text='Valor da diária no momento do primeiro lançamento de produtividade.',
+    )
 
     notes = models.TextField('Observações', blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -509,6 +784,14 @@ class DailyComparison(models.Model):
     @property
     def driver_can_edit(self):
         return not self.driver_data_locked
+
+    @property
+    def driver_locked_by_admin(self):
+        return self.driver_data_locked and self.driver_submitted_at is None
+
+    @property
+    def driver_locked_by_driver(self):
+        return self.driver_data_locked and self.driver_submitted_at is not None
 
     def save(self, *args, **kwargs):
         self.refresh_data_statuses()
@@ -588,6 +871,19 @@ class DailyComparison(models.Model):
         amounts = self.get_diff_amounts()
         return amounts['stops'] + amounts['pudo'] + amounts['pickups']
 
+    @property
+    def revenue_entry(self):
+        """Compatibilidade: receita de produtividade ou a única lançada."""
+        entries = list(self.revenue_entries.all())
+        if not entries:
+            return None
+        if len(entries) == 1:
+            return entries[0]
+        return next(
+            (e for e in entries if e.revenue_kind == Revenue.KIND_PRODUCTIVITY),
+            entries[0],
+        )
+
 
 class FuelRecord(models.Model):
     organization = models.ForeignKey(
@@ -601,11 +897,10 @@ class FuelRecord(models.Model):
     )
     date = models.DateField('Data')
     liters = models.DecimalField(
-        'Litros', max_digits=8, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))]
+        'Litros', max_digits=8, decimal_places=2, null=True, blank=True,
     )
     price_per_liter = models.DecimalField(
-        'Preço/Litro (€)', max_digits=6, decimal_places=3,
-        validators=[MinValueValidator(Decimal('0.001'))]
+        'Preço/Litro (€)', max_digits=6, decimal_places=3, null=True, blank=True,
     )
     total_cost = models.DecimalField(
         'Valor Total (€)', max_digits=10, decimal_places=2,
@@ -658,7 +953,7 @@ class FinancialAccount(models.Model):
         revenues = self.revenues.count()
         if revenues:
             blockers.append(f'{revenues} receita(s)')
-        routes = self.company_routes.count()
+        routes = self.company_routes.count() + self.company_routes_daily_rate.count()
         if routes:
             blockers.append(f'{routes} rota(s) no catálogo')
         return blockers
@@ -698,12 +993,22 @@ class Expense(models.Model):
 
 
 class Revenue(models.Model):
+    KIND_PRODUCTIVITY = 'productivity'
+    KIND_DAILY_RATE = 'daily_rate'
+    KIND_CHOICES = [
+        (KIND_PRODUCTIVITY, 'Produtividade'),
+        (KIND_DAILY_RATE, 'Diária'),
+    ]
+
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name='revenues'
     )
-    comparison = models.OneToOneField(
-        DailyComparison, on_delete=models.CASCADE, related_name='revenue_entry',
+    comparison = models.ForeignKey(
+        DailyComparison, on_delete=models.CASCADE, related_name='revenue_entries',
         null=True, blank=True,
+    )
+    revenue_kind = models.CharField(
+        'Tipo de receita', max_length=20, choices=KIND_CHOICES, blank=True,
     )
     account = models.ForeignKey(
         FinancialAccount, on_delete=models.SET_NULL, null=True, blank=True,
@@ -729,6 +1034,13 @@ class Revenue(models.Model):
         verbose_name = 'Receita'
         verbose_name_plural = 'Receitas'
         ordering = ['-date', '-created_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['comparison', 'revenue_kind'],
+                condition=models.Q(comparison__isnull=False),
+                name='unique_comparison_revenue_kind',
+            ),
+        ]
 
     def __str__(self):
         return f'{self.description} - {self.amount}€'

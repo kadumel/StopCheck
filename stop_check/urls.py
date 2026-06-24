@@ -7,6 +7,7 @@ from . import views_payments
 
 urlpatterns = [
     path('', views.dashboard, name='dashboard'),
+    path('offline/', views.offline_view, name='offline'),
     path('login/', views.CustomLoginView.as_view(), name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('registar/', views.register_view, name='register'),
@@ -19,6 +20,8 @@ urlpatterns = [
     path('comparacoes/<int:pk>/editar/', views.comparison_edit, name='comparison_edit'),
     path('comparacoes/<int:pk>/limpar/', views.comparison_clear, name='comparison_clear'),
     path('comparacoes/<int:pk>/libertar-motorista/', views.comparison_unlock_driver, name='comparison_unlock_driver'),
+    path('comparacoes/<int:pk>/bloquear-motorista/', views.comparison_lock_driver, name='comparison_lock_driver'),
+    path('comparacoes/<int:pk>/sincronizar-financeiro/', views.comparison_sync_finance, name='comparison_sync_finance'),
     path('comparacoes/<int:pk>/eliminar/', views.comparison_delete, name='comparison_delete'),
 
     path('frota/', views.vehicle_list, name='vehicle_list'),
@@ -53,6 +56,7 @@ urlpatterns = [
     path('despesas/nova/', views.expense_create, name='expense_create'),
     path('despesas/<int:pk>/editar/', views.expense_edit, name='expense_edit'),
     path('despesas/<int:pk>/eliminar/', views.expense_delete, name='expense_delete'),
+    path('despesas/eliminar/', views.expense_bulk_delete, name='expense_bulk_delete'),
     path('registos/plano-contas/', views.financial_account_list, name='financial_account_list'),
     path('registos/plano-contas/novo/', views.financial_account_create, name='financial_account_create'),
     path('registos/plano-contas/<int:pk>/editar/', views.financial_account_edit, name='financial_account_edit'),
@@ -61,6 +65,7 @@ urlpatterns = [
     path('financeiro/receitas/nova/', views.revenue_create, name='revenue_create'),
     path('financeiro/receitas/<int:pk>/editar/', views.revenue_edit, name='revenue_edit'),
     path('financeiro/receitas/<int:pk>/eliminar/', views.revenue_delete, name='revenue_delete'),
+    path('financeiro/receitas/eliminar/', views.revenue_bulk_delete, name='revenue_bulk_delete'),
     path('financeiro/', views.finance_view, name='finance'),
     path('assinatura/', views.subscription_view, name='subscription'),
 

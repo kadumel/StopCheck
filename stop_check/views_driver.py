@@ -100,6 +100,7 @@ def _comparison_json(comp):
         'pickups': comp.driver_pickups,
         'total': comp.driver_total,
         'locked': comp.driver_data_locked,
+        'locked_by_admin': comp.driver_locked_by_admin,
     }
 
 
@@ -214,10 +215,15 @@ def driver_submit_data(request):
         comp = get_or_create_comparison_for_route(route)
 
     if comp.driver_data_locked:
+        if comp.driver_locked_by_admin:
+            error = 'O gestor preencheu os dados deste dia. Contacte-o para alterar.'
+        else:
+            error = 'Registo já concluído. Contacte o gestor para alterar.'
         return JsonResponse({
             'ok': False,
-            'error': 'Registo já concluído.',
+            'error': error,
             'locked': True,
+            'locked_by_admin': comp.driver_locked_by_admin,
         }, status=400)
 
     try:

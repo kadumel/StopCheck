@@ -14,6 +14,7 @@ from .services.production_service import DEFAULT_WEEKDAYS, WEEKDAY_LABELS, get_d
 
 from .models import (
     CompanyRoute,
+    ContractingCompany,
     DailyComparison,
     DeliveryCompany,
     Driver,
@@ -113,7 +114,11 @@ class LoginForm(StyledFormMixin, AuthenticationForm):
 
 
 class RegisterForm(StyledFormMixin, UserCreationForm):
-    organization_name = forms.CharField(label='Nome da Empresa', max_length=200)
+    contracting_company = forms.ModelChoiceField(
+        label='Nome da Empresa',
+        queryset=ContractingCompany.objects.none(),
+        empty_label='Selecionar empresa...',
+    )
     email = forms.EmailField(label='Email')
     first_name = forms.CharField(label='Nome', max_length=150)
     last_name = forms.CharField(label='Apelido', max_length=150, required=False)
@@ -122,6 +127,45 @@ class RegisterForm(StyledFormMixin, UserCreationForm):
     class Meta:
         model = User
         fields = ('username', 'first_name', 'last_name', 'email', 'password1', 'password2')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        companies = ContractingCompany.objects.filter(is_active=True).order_by('sort_order', 'name')
+        self.fields['contracting_company'].queryset = companies
+        if not companies.exists():
+            self.fields['contracting_company'].disabled = True
+            self.fields['contracting_company'].empty_label = 'Nenhuma empresa disponível — contacte o suporte'
+        self.order_fields([
+            'contracting_company',
+            'first_name',
+            'last_name',
+            'username',
+            'phone',
+            'email',
+            'password1',
+            'password2',
+        ])
+        self.fields['username'].label = 'NIF'
+        self.fields['username'].help_text = ''
+        self.fields['username'].widget.attrs.update({
+            'inputmode': 'numeric',
+            'pattern': '[0-9]{9}',
+            'maxlength': '9',
+            'placeholder': '123456789',
+            'autocomplete': 'username',
+        })
+        self.fields['password1'].help_text = 'Mínimo 8 caracteres.'
+        self.fields['password2'].help_text = ''
+
+    def clean_username(self):
+        nif = ''.join(c for c in (self.cleaned_data.get('username') or '') if c.isdigit())
+        if len(nif) != 9:
+            raise forms.ValidationError('O NIF deve ter 9 dígitos.')
+        if User.objects.filter(username=nif).exists():
+            raise forms.ValidationError('Este NIF já está registado.')
+        if Driver.objects.filter(nif=nif).exists():
+            raise forms.ValidationError('Este NIF já está registado.')
+        return nif
 
     def clean_email(self):
         email = self.cleaned_data['email'].lower().strip()
@@ -210,11 +254,10 @@ class DriverForm(StyledFormMixin, forms.ModelForm):
 
     class Meta:
         model = Driver
-        fields = ['name', 'nif', 'email', 'phone', 'license_number', 'is_active']
+        fields = ['name', 'nif', 'phone', 'license_number', 'is_active']
         labels = {
             'name': 'Nome',
             'nif': 'NIF',
-            'email': 'Email',
             'phone': 'Telefone',
             'license_number': 'Carta de Condução',
             'is_active': 'Ativo',
@@ -222,12 +265,20 @@ class DriverForm(StyledFormMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['name'].widget.attrs.update({
+            'autofocus': True,
+            'autocomplete': 'name',
+        })
         self.fields['nif'].widget.attrs.update({
             'inputmode': 'numeric',
             'pattern': '[0-9]{9}',
             'maxlength': '9',
             'placeholder': '123456789',
+            'autocomplete': 'off',
         })
+        self.fields['phone'].widget.attrs['autocomplete'] = 'tel'
+        self.fields['license_number'].widget.attrs['autocomplete'] = 'off'
+        self.fields['password'].widget.attrs['autocomplete'] = 'new-password'
 
     def clean_nif(self):
         nif = self._normalize_nif(self.cleaned_data.get('nif', ''))
@@ -299,7 +350,7 @@ class CompanyRouteForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = CompanyRoute
         fields = [
-            'delivery_company', 'name', 'revenue_account',
+            'delivery_company', 'name', 'revenue_account', 'daily_rate_account',
             'price_per_stop', 'price_per_pudo', 'price_per_pickup', 'daily_rate',
             'notes', 'is_active',
         ]
@@ -309,18 +360,36 @@ class CompanyRouteForm(StyledFormMixin, forms.ModelForm):
         labels = {
             'delivery_company': 'Empresa Contratante',
             'name': 'Nome / Código da Rota',
-            'revenue_account': 'Plano de conta (Receita)',
+            'revenue_account': 'Plano de conta (Produtividade)',
+            'daily_rate_account': 'Plano de conta (Diárias)',
             'price_per_stop': 'Preço por Parada (€)',
             'price_per_pudo': 'Preço por PUDO (€)',
             'price_per_pickup': 'Preço por Recolha (€)',
-            'daily_rate': 'Diária (€)',
+            'daily_rate': 'Diária por dia (€)',
             'notes': 'Observações',
             'is_active': 'Ativa',
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in ('revenue_account', 'daily_rate_account'):
+            field = self.fields[name]
+            field.required = True
+            field.empty_label = 'Seleccione...'
+
     def clean_revenue_account(self):
         account = self.cleaned_data.get('revenue_account')
-        if account and account.account_type != FinancialAccount.TYPE_REVENUE:
+        if not account:
+            raise forms.ValidationError('Seleccione o plano de conta de produtividade.')
+        if account.account_type != FinancialAccount.TYPE_REVENUE:
+            raise forms.ValidationError('Seleccione um plano de conta do tipo Receita.')
+        return account
+
+    def clean_daily_rate_account(self):
+        account = self.cleaned_data.get('daily_rate_account')
+        if not account:
+            raise forms.ValidationError('Seleccione o plano de conta das diárias.')
+        if account.account_type != FinancialAccount.TYPE_REVENUE:
             raise forms.ValidationError('Seleccione um plano de conta do tipo Receita.')
         return account
 
@@ -542,6 +611,9 @@ class FuelRecordForm(StyledFormMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields['liters'].required = False
+        self.fields['price_per_liter'].required = False
+        self.fields['total_cost'].required = True
         self.fields['total_cost'].widget.attrs.update({
             'step': '0.01',
             'inputmode': 'decimal',
@@ -551,6 +623,30 @@ class FuelRecordForm(StyledFormMixin, forms.ModelForm):
                 self.initial['total_cost'] = (
                     self.instance.liters * self.instance.price_per_liter
                 ).quantize(Decimal('0.01'))
+
+    def clean_liters(self):
+        liters = self.cleaned_data.get('liters')
+        if liters is None:
+            return None
+        if liters < Decimal('0.01'):
+            raise forms.ValidationError('Indique um valor positivo ou deixe em branco.')
+        return liters
+
+    def clean_price_per_liter(self):
+        price = self.cleaned_data.get('price_per_liter')
+        if price is None:
+            return None
+        if price < Decimal('0.001'):
+            raise forms.ValidationError('Indique um valor positivo ou deixe em branco.')
+        return price
+
+    def clean_total_cost(self):
+        total = self.cleaned_data.get('total_cost')
+        if total is None:
+            raise forms.ValidationError('Indique o valor total.')
+        if total < Decimal('0.01'):
+            raise forms.ValidationError('O valor total deve ser superior a zero.')
+        return total
 
 
 class ExpenseForm(StyledFormMixin, forms.ModelForm):
@@ -590,6 +686,16 @@ class RevenueForm(StyledFormMixin, forms.ModelForm):
 
 
 class SubscriptionContractForm(StyledFormMixin, forms.Form):
+    def __init__(self, *args, tariff=None, **kwargs):
+        self.tariff = tariff
+        super().__init__(*args, **kwargs)
+        if tariff:
+            self.fields['contracted_routes'].help_text = (
+                f'O plano base ({tariff.price_first_route:.2f} €/mês) inclui '
+                f'{tariff.included_routes} rotas. Cada rota adicional: '
+                f'{tariff.price_additional_route:.2f} €/mês.'
+            )
+
     contracted_routes = forms.IntegerField(
         label='Quantidade de rotas',
         min_value=1,
@@ -600,6 +706,27 @@ class SubscriptionContractForm(StyledFormMixin, forms.Form):
         choices=Subscription.PAYMENT_METHOD_CHOICES,
         widget=forms.RadioSelect,
     )
+
+    def clean_contracted_routes(self):
+        routes = self.cleaned_data['contracted_routes']
+        if routes < 1:
+            raise forms.ValidationError('Indique pelo menos uma rota.')
+        return routes
+
+
+class RouteAdditionRequestForm(StyledFormMixin, forms.Form):
+    additional_routes = forms.IntegerField(
+        label='Rotas adicionais a contratar',
+        min_value=1,
+        widget=forms.NumberInput(attrs={'min': '1', 'step': '1'}),
+        help_text='Após confirmação do pagamento proporcional, poderá registar as novas rotas no catálogo.',
+    )
+
+    def clean_additional_routes(self):
+        value = self.cleaned_data['additional_routes']
+        if value < 1:
+            raise forms.ValidationError('Indique pelo menos uma rota adicional.')
+        return value
 
 
 class FinancialAccountForm(StyledFormMixin, forms.ModelForm):
@@ -623,9 +750,61 @@ class RateConfigForm(StyledFormMixin, forms.ModelForm):
 
 
 class DeliveryCompanyForm(StyledFormMixin, forms.ModelForm):
+    contracting_company = forms.ModelChoiceField(
+        label='Nome',
+        queryset=ContractingCompany.objects.none(),
+        empty_label='Selecionar empresa...',
+    )
+
     class Meta:
         model = DeliveryCompany
-        fields = ['name', 'contact_email', 'contact_phone', 'notes', 'is_active']
+        fields = ['contact_email', 'contact_phone', 'notes', 'is_active']
+
+    def __init__(self, *args, organization=None, **kwargs):
+        self.organization = organization
+        super().__init__(*args, **kwargs)
+        qs = ContractingCompany.objects.filter(is_active=True).order_by('sort_order', 'name')
+        if organization and not self.instance.pk:
+            existing_names = DeliveryCompany.objects.filter(
+                organization=organization,
+            ).values_list('name', flat=True)
+            qs = qs.exclude(name__in=existing_names)
+        elif organization and self.instance.pk:
+            current = ContractingCompany.objects.filter(name=self.instance.name).first()
+            if current:
+                self.fields['contracting_company'].initial = current.pk
+        self.fields['contracting_company'].queryset = qs
+        if not qs.exists() and not self.instance.pk:
+            self.fields['contracting_company'].disabled = True
+            self.fields['contracting_company'].empty_label = 'Nenhuma empresa disponível'
+        self.order_fields([
+            'contracting_company',
+            'contact_email',
+            'contact_phone',
+            'notes',
+            'is_active',
+        ])
+
+    def clean_contracting_company(self):
+        company = self.cleaned_data['contracting_company']
+        if not self.organization:
+            return company
+        qs = DeliveryCompany.objects.filter(
+            organization=self.organization,
+            name=company.name,
+        )
+        if self.instance.pk:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise forms.ValidationError('Esta empresa já está registada.')
+        return company
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.name = self.cleaned_data['contracting_company'].name
+        if commit:
+            instance.save()
+        return instance
 
 
 class CompanyImportForm(StyledFormMixin, forms.Form):

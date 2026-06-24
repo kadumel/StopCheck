@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head><meta charset="utf-8"><title>{{ assunto }}</title></head>
+<body style="font-family: system-ui, sans-serif; color: #1e293b; line-height: 1.5;">
+  <p>Olá,</p>
+  <p>Recebemos o seu pedido de <strong>{{ route_request.additional_routes }} rota(s) adicional(is)</strong> no StopCheck.</p>
+  <table style="margin: 1rem 0; border-collapse: collapse;">
+    <tr><td style="padding: 0.25rem 1rem 0.25rem 0; color: #64748b;">Empresa</td><td>{{ organization.name }}</td></tr>
+    <tr><td style="padding: 0.25rem 1rem 0.25rem 0; color: #64748b;">Rotas após pagamento</td><td>{{ new_total }}</td></tr>
+    <tr><td style="padding: 0.25rem 1rem 0.25rem 0; color: #64748b;">Valor proporcional</td><td><strong>{{ invoice.amount }} €</strong></td></tr>
+    <tr><td style="padding: 0.25rem 1rem 0.25rem 0; color: #64748b;">Período</td><td>{{ period_label }}</td></tr>
+    <tr><td style="padding: 0.25rem 1rem 0.25rem 0; color: #64748b;">Pagar até</td><td>{{ invoice.due_date|date:"d/m/Y" }}</td></tr>
+  </table>
+  {% if tariff.mbway_phone %}<p>MB Way: <strong>{{ tariff.mbway_phone }}</strong></p>{% endif %}
+  {% if tariff.iban %}<p>IBAN: <strong>{{ tariff.iban }}</strong></p>{% endif %}
+  <p>Após confirmação do pagamento, poderá registar as novas rotas em <strong>Empresa / Rota</strong>.</p>
+  <p style="color: #64748b; font-size: 0.875rem;">Informe o pagamento na página Assinatura do painel.</p>
+  <p>StopCheck</p>
+</body>
+</html>

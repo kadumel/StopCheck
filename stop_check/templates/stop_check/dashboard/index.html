@@ -15,6 +15,9 @@
 {% endblock %}
 
 {% block header_actions %}
+<a href="{% url 'comparison_list' %}?year={{ year }}&month={{ month }}" class="hidden sm:inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition">
+    Comparações
+</a>
 <a href="{% url 'export_excel' %}?year={{ year }}&month={{ month }}" class="hidden sm:inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition">
     Excel
 </a>
@@ -97,78 +100,262 @@
     {% endif %}
 </div>
 
-<!-- Comparisons -->
-<div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+{% if stats.days_with_data > 0 %}
+<!-- Evolution charts -->
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="text-lg font-semibold text-slate-800 mb-1">Evolução de Operações</h3>
+        <p class="text-sm text-slate-500 mb-4">Últimos 6 meses — totais mensais</p>
+        <div class="relative h-64">
+            <canvas id="chartOperations"></canvas>
+        </div>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="text-lg font-semibold text-slate-800 mb-1">Evolução Financeira</h3>
+        <p class="text-sm text-slate-500 mb-4">Últimos 6 meses — receita, despesas e lucro</p>
+        <div class="relative h-64">
+            <canvas id="chartFinance"></canvas>
+        </div>
+    </div>
+</div>
+
+{% if by_company|length > 1 %}
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
+    <h3 class="text-lg font-semibold text-slate-800 mb-1">Operações por Empresa</h3>
+    <p class="text-sm text-slate-500 mb-4">{{ month_name }} {{ year }}</p>
+    <div class="relative h-56 max-w-2xl">
+        <canvas id="chartCompany"></canvas>
+    </div>
+</div>
+{% endif %}
+
+<!-- By company -->
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
     <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-semibold text-slate-800">Comparações do Mês</h3>
+        <h3 class="text-lg font-semibold text-slate-800">Indicadores por Empresa</h3>
         {% if stats.discrepancy_count > 0 %}
         <span class="px-3 py-1 text-xs font-medium bg-red-100 text-red-700 rounded-full">
-            {{ stats.discrepancy_count }} discrepância{{ stats.discrepancy_count|pluralize:"s" }}
+            {{ stats.discrepancy_count }} discrepância{{ stats.discrepancy_count|pluralize:"s" }} no mês
         </span>
         {% endif %}
     </div>
-
-    {% if stats.comparisons %}
     <div class="overflow-x-auto">
         <table class="w-full text-sm">
             <thead>
                 <tr class="border-b border-slate-200 text-left text-slate-500">
-                    <th class="pb-3 pr-4 font-medium">Data</th>
-                    <th class="pb-3 pr-4 font-medium">Motorista</th>
-                    <th class="pb-3 pr-4 font-medium text-center" colspan="3">Seus Dados</th>
-                    <th class="pb-3 pr-4 font-medium text-center" colspan="3">Empresa</th>
-                    <th class="pb-3 font-medium text-center" colspan="3">Diferença</th>
-                    <th class="pb-3 font-medium"></th>
-                </tr>
-                <tr class="border-b border-slate-100 text-xs text-slate-400">
-                    <th colspan="2"></th>
-                    <th class="py-2 pr-2">Stops</th>
-                    <th class="py-2 pr-2">PUDO</th>
-                    <th class="py-2 pr-4">Rec.</th>
-                    <th class="py-2 pr-2">Stops</th>
-                    <th class="py-2 pr-2">PUDO</th>
-                    <th class="py-2 pr-4">Rec.</th>
-                    <th class="py-2 pr-2">Stops</th>
-                    <th class="py-2 pr-2">PUDO</th>
-                    <th class="py-2 pr-4">Rec.</th>
-                    <th></th>
+                    <th class="pb-3 pr-4 font-medium">Empresa</th>
+                    <th class="pb-3 pr-4 font-medium text-center">Dias</th>
+                    <th class="pb-3 pr-4 font-medium text-center">Stops</th>
+                    <th class="pb-3 pr-4 font-medium text-center">PUDO</th>
+                    <th class="pb-3 pr-4 font-medium text-center">Recolhas</th>
+                    <th class="pb-3 pr-4 font-medium text-center">Média/dia</th>
+                    <th class="pb-3 pr-4 font-medium text-center">Discr.</th>
+                    <th class="pb-3 font-medium text-center">Dif. €</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
-                {% for comp in stats.comparisons %}
-                {% with da=comp.get_diff_amounts %}
-                <tr class="hover:bg-slate-50 {% if comp.has_discrepancy %}bg-red-50/50{% endif %}">
-                    <td class="py-3 pr-4 font-medium">{{ comp.date|date:"d/m/Y" }}</td>
-                    <td class="py-3 pr-4">{{ comp.driver.name }}</td>
-                    <td class="py-3 pr-2 text-center font-semibold text-brand-700">{{ comp.driver_stops }}</td>
-                    <td class="py-3 pr-2 text-center font-semibold text-brand-700">{{ comp.driver_pudo }}</td>
-                    <td class="py-3 pr-4 text-center font-semibold text-brand-700">{{ comp.driver_pickups }}</td>
-                    <td class="py-3 pr-2 text-center text-slate-600">{{ comp.company_stops }}</td>
-                    <td class="py-3 pr-2 text-center text-slate-600">{{ comp.company_pudo }}</td>
-                    <td class="py-3 pr-4 text-center text-slate-600">{{ comp.company_pickups }}</td>
-                    <td class="py-3 pr-2 text-center">{% include 'stop_check/components/diff_cell.html' with value=comp.diff_stops amount=da.stops %}</td>
-                    <td class="py-3 pr-2 text-center">{% include 'stop_check/components/diff_cell.html' with value=comp.diff_pudo amount=da.pudo %}</td>
-                    <td class="py-3 pr-4 text-center">{% include 'stop_check/components/diff_cell.html' with value=comp.diff_pickups amount=da.pickups %}</td>
-                    <td class="py-3">
-                        <a href="{% url 'comparison_edit' comp.pk %}" class="text-brand-600 hover:underline text-xs">Editar</a>
+                {% for row in by_company %}
+                <tr class="hover:bg-slate-50">
+                    <td class="py-3 pr-4 font-medium text-slate-800">{{ row.label }}</td>
+                    <td class="py-3 pr-4 text-center text-slate-600">{{ row.days }}</td>
+                    <td class="py-3 pr-4 text-center font-semibold text-brand-700">{{ row.stops }}</td>
+                    <td class="py-3 pr-4 text-center font-semibold text-brand-700">{{ row.pudo }}</td>
+                    <td class="py-3 pr-4 text-center font-semibold text-brand-700">{{ row.pickups }}</td>
+                    <td class="py-3 pr-4 text-center text-slate-600">{{ row.avg_operations }}</td>
+                    <td class="py-3 pr-4 text-center">
+                        {% if row.discrepancies > 0 %}
+                        <span class="text-red-600 font-medium">{{ row.discrepancies }}</span>
+                        {% else %}
+                        <span class="text-slate-400">0</span>
+                        {% endif %}
+                    </td>
+                    <td class="py-3 text-center">
+                        {% if row.diff_amount != 0 %}
+                        <span class="{% if row.diff_amount > 0 %}text-amber-600{% else %}text-red-600{% endif %} font-medium">
+                            {% if row.diff_amount > 0 %}+{% endif %}{{ row.diff_amount|floatformat:2 }} €
+                        </span>
+                        {% else %}
+                        <span class="text-slate-400">—</span>
+                        {% endif %}
                     </td>
                 </tr>
-                {% endwith %}
                 {% endfor %}
             </tbody>
         </table>
     </div>
-    {% else %}
+</div>
+
+<!-- By route -->
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-slate-800">Indicadores por Rota</h3>
+        <a href="{% url 'comparison_list' %}?year={{ year }}&month={{ month }}" class="text-sm text-brand-600 hover:underline">Ver comparações detalhadas →</a>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-slate-200 text-left text-slate-500">
+                    <th class="pb-3 pr-4 font-medium">Rota</th>
+                    <th class="pb-3 pr-4 font-medium text-center">Dias</th>
+                    <th class="pb-3 pr-4 font-medium text-center">Stops</th>
+                    <th class="pb-3 pr-4 font-medium text-center">PUDO</th>
+                    <th class="pb-3 pr-4 font-medium text-center">Recolhas</th>
+                    <th class="pb-3 pr-4 font-medium text-center">Média/dia</th>
+                    <th class="pb-3 pr-4 font-medium text-center">Discr.</th>
+                    <th class="pb-3 font-medium text-center">Dif. €</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+                {% for row in by_route %}
+                <tr class="hover:bg-slate-50">
+                    <td class="py-3 pr-4 font-medium text-slate-800">{{ row.label }}</td>
+                    <td class="py-3 pr-4 text-center text-slate-600">{{ row.days }}</td>
+                    <td class="py-3 pr-4 text-center font-semibold text-brand-700">{{ row.stops }}</td>
+                    <td class="py-3 pr-4 text-center font-semibold text-brand-700">{{ row.pudo }}</td>
+                    <td class="py-3 pr-4 text-center font-semibold text-brand-700">{{ row.pickups }}</td>
+                    <td class="py-3 pr-4 text-center text-slate-600">{{ row.avg_operations }}</td>
+                    <td class="py-3 pr-4 text-center">
+                        {% if row.discrepancies > 0 %}
+                        <span class="text-red-600 font-medium">{{ row.discrepancies }}</span>
+                        {% else %}
+                        <span class="text-slate-400">0</span>
+                        {% endif %}
+                    </td>
+                    <td class="py-3 text-center">
+                        {% if row.diff_amount != 0 %}
+                        <span class="{% if row.diff_amount > 0 %}text-amber-600{% else %}text-red-600{% endif %} font-medium">
+                            {% if row.diff_amount > 0 %}+{% endif %}{{ row.diff_amount|floatformat:2 }} €
+                        </span>
+                        {% else %}
+                        <span class="text-slate-400">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% else %}
+<div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
     <div class="text-center py-12">
         <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center">
             <svg class="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
         </div>
-        <h4 class="text-lg font-medium text-slate-700">Nenhum dado para {{ month_name }} {{ year }}</h4>
-        <p class="text-slate-500 mt-2 mb-6">Crie uma comparação para começar a registrar dados neste mês.</p>
-        <a href="{% url 'comparison_create' %}" class="inline-flex items-center gap-2 px-6 py-3 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition">
-            Criar Comparação
-        </a>
+        <h4 class="text-lg font-medium text-slate-700">Nenhum dado de produção para {{ month_name }} {{ year }}</h4>
+        <p class="text-slate-500 mt-2 mb-6">Crie uma comparação para começar a analisar indicadores e evolução.</p>
+        <div class="flex flex-wrap justify-center gap-3">
+            <a href="{% url 'comparison_create' %}" class="inline-flex items-center gap-2 px-6 py-3 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition">
+                Criar Comparação
+            </a>
+            <a href="{% url 'comparison_list' %}?year={{ year }}&month={{ month }}" class="inline-flex items-center gap-2 px-6 py-3 bg-white text-slate-700 font-medium rounded-lg border border-slate-300 hover:bg-slate-50 transition">
+                Ver Comparações
+            </a>
+        </div>
     </div>
-    {% endif %}
 </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+{% if stats.days_with_data > 0 %}
+{{ chart_data|json_script:"dashboard-chart-data" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+    const el = document.getElementById('dashboard-chart-data');
+    if (!el || typeof Chart === 'undefined') return;
+    const data = JSON.parse(el.textContent);
+    const brand = '#059669';
+    const brandLight = '#34d399';
+    const slate = '#64748b';
+    const amber = '#d97706';
+    const red = '#dc2626';
+
+    const commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 16 } },
+        },
+        scales: {
+            x: { grid: { display: false } },
+            y: { beginAtZero: true },
+        },
+    };
+
+    const opsCanvas = document.getElementById('chartOperations');
+    if (opsCanvas) {
+        new Chart(opsCanvas, {
+            type: 'line',
+            data: {
+                labels: data.labels,
+                datasets: [
+                    { label: 'Stops', data: data.operations.stops, borderColor: brand, backgroundColor: brand + '20', tension: 0.3, fill: false, pointRadius: 4 },
+                    { label: 'PUDO', data: data.operations.pudo, borderColor: brandLight, backgroundColor: brandLight + '20', tension: 0.3, fill: false, pointRadius: 4 },
+                    { label: 'Recolhas', data: data.operations.pickups, borderColor: '#047857', backgroundColor: '#04785720', tension: 0.3, fill: false, pointRadius: 4 },
+                ],
+            },
+            options: commonOptions,
+        });
+    }
+
+    const finCanvas = document.getElementById('chartFinance');
+    if (finCanvas) {
+        new Chart(finCanvas, {
+            type: 'line',
+            data: {
+                labels: data.labels,
+                datasets: [
+                    { label: 'Receita', data: data.finance.revenue, borderColor: brand, tension: 0.3, pointRadius: 4 },
+                    { label: 'Despesas', data: data.finance.expenses, borderColor: red, tension: 0.3, pointRadius: 4 },
+                    { label: 'Lucro', data: data.finance.profit, borderColor: amber, tension: 0.3, pointRadius: 4 },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12, padding: 16 } },
+                },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { callback: function (v) { return v + ' €'; } },
+                    },
+                },
+            },
+        });
+    }
+
+    const companyCanvas = document.getElementById('chartCompany');
+    if (companyCanvas) {
+        const labels = Object.keys(data.company_ops);
+        new Chart(companyCanvas, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Operações',
+                    data: labels.map(function (k) { return data.company_ops[k]; }),
+                    backgroundColor: [brand, brandLight, '#047857', '#10b981', '#6ee7b7', slate],
+                }],
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                    y: { grid: { display: false } },
+                },
+            },
+        });
+    }
+})();
+</script>
+{% endif %}
 {% endblock %}

@@ -1,39 +1,40 @@
-const CACHE = 'stopcheck-static-v2';
-const STATIC_ASSETS = ['/static/icons/icon-192.png'];
+const CACHE = 'stopcheck-v5';
+const PRECACHE = [
+  '/static/manifest.json',
+  '/static/icons/icon-192.png',
+  '/static/icons/icon-512.png',
+  '/static/icons/apple-touch-icon.png',
+];
 
-self.addEventListener('install', (e) => {
-  e.waitUntil(
+self.addEventListener('install', (event) => {
+  event.waitUntil(
     caches.open(CACHE)
-      .then((cache) => cache.addAll(STATIC_ASSETS))
+      .then((cache) => cache.addAll(PRECACHE))
       .then(() => self.skipWaiting())
   );
 });
 
-self.addEventListener('activate', (e) => {
-  e.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 
-self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
 
-  const url = new URL(e.request.url);
-  if (url.pathname.startsWith('/motorista')) {
-    e.respondWith(fetch(e.request));
-    return;
-  }
-
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
   if (!url.pathname.startsWith('/static/')) return;
 
-  e.respondWith(
-    caches.match(e.request).then((cached) => {
-      const network = fetch(e.request).then((response) => {
+  event.respondWith(
+    caches.match(event.request).then((cached) => {
+      const network = fetch(event.request).then((response) => {
         if (response.ok) {
           const clone = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(e.request, clone));
+          caches.open(CACHE).then((cache) => cache.put(event.request, clone));
         }
         return response;
       });

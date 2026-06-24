@@ -4,60 +4,178 @@
     <meta charset="UTF-8">
     <title>StopCheck — Relatório {{ month_name }} {{ year }}</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; color: #1e293b; }
-        h1 { color: #059669; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; font-size: 13px; }
-        th { background: #f1f5f9; }
-        .summary { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 24px 0; }
-        .card { padding: 16px; border: 1px solid #e2e8f0; border-radius: 8px; }
-        .card h3 { margin: 0 0 8px; font-size: 14px; color: #64748b; }
-        .card p { margin: 0; font-size: 24px; font-weight: bold; }
-        @media print { body { margin: 0; } }
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 40px auto; padding: 20px; color: #1e293b; font-size: 13px; }
+        h1 { color: #059669; margin-bottom: 4px; }
+        h2 { color: #334155; font-size: 16px; margin: 28px 0 12px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; }
+        .subtitle { color: #64748b; margin-top: 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        th, td { border: 1px solid #e2e8f0; padding: 7px 8px; text-align: left; }
+        th { background: #f1f5f9; font-weight: 600; }
+        td.num, th.num { text-align: center; }
+        .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 20px 0; }
+        .card { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; }
+        .card h3 { margin: 0 0 6px; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.03em; }
+        .card p { margin: 0; font-size: 20px; font-weight: bold; }
+        .finance { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0; }
+        .finance .card p { font-size: 18px; }
+        .positive { color: #059669; }
+        .negative { color: #dc2626; }
+        .impact { padding: 12px; border-radius: 8px; margin: 16px 0; border: 1px solid #fcd34d; background: #fffbeb; }
+        .section-note { color: #64748b; font-size: 12px; margin: -4px 0 8px; }
+        .page-break { page-break-before: always; }
+        @media print {
+            body { margin: 0; max-width: none; }
+            .page-break { page-break-before: always; }
+        }
     </style>
 </head>
 <body onload="window.print()">
     <h1>StopCheck — Relatório Mensal</h1>
-    <p><strong>{{ org.name }}</strong> — {{ month_name }} {{ year }}</p>
+    <p class="subtitle"><strong>{{ org.name }}</strong> — {{ month_name }} {{ year }}</p>
 
+    <h2>Indicadores Gerais</h2>
     <div class="summary">
-        <div class="card"><h3>Receita Bruta</h3><p style="color:#059669">{{ stats.gross_revenue|floatformat:2 }} €</p></div>
-        <div class="card"><h3>Total Despesas</h3><p style="color:#dc2626">{{ stats.total_expenses|floatformat:2 }} €</p></div>
-        <div class="card"><h3>Lucro Líquido</h3><p>{{ stats.net_profit|floatformat:2 }} €</p></div>
-        <div class="card"><h3>Discrepâncias</h3><p>{{ stats.discrepancy_count }}</p></div>
-        <div class="card"><h3>Dif. Stops</h3><p>{% if stats.diff_totals.stops > 0 %}+{% endif %}{{ stats.diff_totals.stops }} <small>({% if stats.diff_amounts.stops > 0 %}+{% endif %}{{ stats.diff_amounts.stops|floatformat:2 }} €)</small></p></div>
-        <div class="card"><h3>Dif. PUDO</h3><p>{% if stats.diff_totals.pudo > 0 %}+{% endif %}{{ stats.diff_totals.pudo }} <small>({% if stats.diff_amounts.pudo > 0 %}+{% endif %}{{ stats.diff_amounts.pudo|floatformat:2 }} €)</small></p></div>
-        <div class="card"><h3>Dif. Recolhas</h3><p>{% if stats.diff_totals.pickups > 0 %}+{% endif %}{{ stats.diff_totals.pickups }} <small>({% if stats.diff_amounts.pickups > 0 %}+{% endif %}{{ stats.diff_amounts.pickups|floatformat:2 }} €)</small></p></div>
-        <div class="card"><h3>Impacto Total Dif.</h3><p>{% if stats.diff_amounts.total > 0 %}+{% endif %}{{ stats.diff_amounts.total|floatformat:2 }} €</p></div>
+        <div class="card"><h3>Dias com dados</h3><p>{{ stats.days_with_data }}</p></div>
+        <div class="card"><h3>Média Stops/dia</h3><p class="positive">{{ stats.avg_stops }}</p></div>
+        <div class="card"><h3>Média PUDO/dia</h3><p class="positive">{{ stats.avg_pudo }}</p></div>
+        <div class="card"><h3>Média Recolhas/dia</h3><p class="positive">{{ stats.avg_pickups }}</p></div>
     </div>
 
-    <h2>Comparações Diárias</h2>
+    <h2>Resumo Financeiro</h2>
+    <div class="finance">
+        <div class="card"><h3>Receita Bruta</h3><p class="positive">{{ stats.gross_revenue|floatformat:2 }} €</p></div>
+        <div class="card"><h3>Total Despesas</h3><p class="negative">{{ stats.total_expenses|floatformat:2 }} €</p></div>
+        <div class="card"><h3>Lucro Líquido</h3><p class="{% if stats.net_profit >= 0 %}positive{% else %}negative{% endif %}">{{ stats.net_profit|floatformat:2 }} €</p></div>
+        <div class="card">
+            <h3>Custo por Operação</h3>
+            <p>{% if stats.cost_per_operation %}{{ stats.cost_per_operation|floatformat:3 }} €{% else %}—{% endif %}</p>
+        </div>
+    </div>
+    <table>
+        <tbody>
+            <tr><th>Combustível</th><td>{{ stats.fuel_cost|floatformat:2 }} €</td><th>Outras Despesas</th><td>{{ stats.other_expenses|floatformat:2 }} €</td></tr>
+            <tr><th>Discrepâncias no mês</th><td>{{ stats.discrepancy_count }}</td><th>Impacto total diferenças</th><td>{% if stats.diff_amounts.total > 0 %}+{% endif %}{{ stats.diff_amounts.total|floatformat:2 }} €</td></tr>
+        </tbody>
+    </table>
+    {% if stats.diff_amounts.total != 0 %}
+    <div class="impact">
+        <strong>Impacto financeiro das diferenças (tarifas por rota)</strong><br>
+        Stops: {% if stats.diff_totals.stops > 0 %}+{% endif %}{{ stats.diff_totals.stops }} ({{ stats.diff_amounts.stops|floatformat:2 }} €) —
+        PUDO: {% if stats.diff_totals.pudo > 0 %}+{% endif %}{{ stats.diff_totals.pudo }} ({{ stats.diff_amounts.pudo|floatformat:2 }} €) —
+        Recolhas: {% if stats.diff_totals.pickups > 0 %}+{% endif %}{{ stats.diff_totals.pickups }} ({{ stats.diff_amounts.pickups|floatformat:2 }} €)
+    </div>
+    {% endif %}
+
+    {% if by_company %}
+    <h2>Indicadores por Empresa</h2>
     <table>
         <thead>
             <tr>
-                <th>Data</th><th>Motorista</th>
-                <th>Stops (M)</th><th>PUDO (M)</th><th>Rec. (M)</th>
-                <th>Stops (E)</th><th>PUDO (E)</th><th>Rec. (E)</th>
-                <th>Δ Stops</th><th>Δ PUDO</th><th>Δ Rec.</th>
-                <th>€ Stops</th><th>€ PUDO</th><th>€ Rec.</th>
+                <th>Empresa</th>
+                <th class="num">Dias</th>
+                <th class="num">Stops</th>
+                <th class="num">PUDO</th>
+                <th class="num">Recolhas</th>
+                <th class="num">Média/dia</th>
+                <th class="num">Discr.</th>
+                <th class="num">Dif. €</th>
             </tr>
         </thead>
         <tbody>
-            {% for comp in stats.comparisons %}
-            {% with da=comp.get_diff_amounts %}
+            {% for row in by_company %}
             <tr>
-                <td>{{ comp.date|date:"d/m/Y" }}</td>
-                <td>{{ comp.driver.name }}</td>
-                <td>{{ comp.driver_stops }}</td><td>{{ comp.driver_pudo }}</td><td>{{ comp.driver_pickups }}</td>
-                <td>{{ comp.company_stops }}</td><td>{{ comp.company_pudo }}</td><td>{{ comp.company_pickups }}</td>
-                <td>{% if comp.diff_stops > 0 %}+{% endif %}{{ comp.diff_stops }}</td>
-                <td>{% if comp.diff_pudo > 0 %}+{% endif %}{{ comp.diff_pudo }}</td>
-                <td>{% if comp.diff_pickups > 0 %}+{% endif %}{{ comp.diff_pickups }}</td>
-                <td>{{ da.stops|floatformat:2 }}</td>
-                <td>{{ da.pudo|floatformat:2 }}</td>
-                <td>{{ da.pickups|floatformat:2 }}</td>
+                <td>{{ row.label }}</td>
+                <td class="num">{{ row.days }}</td>
+                <td class="num">{{ row.stops }}</td>
+                <td class="num">{{ row.pudo }}</td>
+                <td class="num">{{ row.pickups }}</td>
+                <td class="num">{{ row.avg_operations }}</td>
+                <td class="num">{{ row.discrepancies }}</td>
+                <td class="num">{% if row.diff_amount != 0 %}{% if row.diff_amount > 0 %}+{% endif %}{{ row.diff_amount|floatformat:2 }} €{% else %}—{% endif %}</td>
             </tr>
-            {% endwith %}
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% if by_route %}
+    <h2>Indicadores por Rota</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Rota</th>
+                <th class="num">Dias</th>
+                <th class="num">Stops</th>
+                <th class="num">PUDO</th>
+                <th class="num">Recolhas</th>
+                <th class="num">Média/dia</th>
+                <th class="num">Discr.</th>
+                <th class="num">Dif. €</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in by_route %}
+            <tr>
+                <td>{{ row.label }}</td>
+                <td class="num">{{ row.days }}</td>
+                <td class="num">{{ row.stops }}</td>
+                <td class="num">{{ row.pudo }}</td>
+                <td class="num">{{ row.pickups }}</td>
+                <td class="num">{{ row.avg_operations }}</td>
+                <td class="num">{{ row.discrepancies }}</td>
+                <td class="num">{% if row.diff_amount != 0 %}{% if row.diff_amount > 0 %}+{% endif %}{{ row.diff_amount|floatformat:2 }} €{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <div class="page-break"></div>
+
+    <h2>Evolução de Operações</h2>
+    <p class="section-note">Últimos 6 meses — totais mensais</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Mês</th>
+                <th class="num">Stops</th>
+                <th class="num">PUDO</th>
+                <th class="num">Recolhas</th>
+                <th class="num">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in evolution_rows %}
+            <tr>
+                <td>{{ row.label }}</td>
+                <td class="num">{{ row.stops }}</td>
+                <td class="num">{{ row.pudo }}</td>
+                <td class="num">{{ row.pickups }}</td>
+                <td class="num">{{ row.operations_total }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>Evolução Financeira</h2>
+    <p class="section-note">Últimos 6 meses — receita, despesas e lucro</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Mês</th>
+                <th class="num">Receita</th>
+                <th class="num">Despesas</th>
+                <th class="num">Lucro</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in evolution_rows %}
+            <tr>
+                <td>{{ row.label }}</td>
+                <td class="num">{{ row.revenue|floatformat:2 }} €</td>
+                <td class="num">{{ row.expenses|floatformat:2 }} €</td>
+                <td class="num">{{ row.profit|floatformat:2 }} €</td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>

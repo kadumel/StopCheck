@@ -27,6 +27,7 @@ from .forms import (
     LoginForm,
     RegisterForm,
     SubscriptionContractForm,
+    RouteAdditionRequestForm,
     CompanyRouteForm,
     DeliveryCompanyForm,
     ProductionAssignForm,
@@ -44,6 +45,7 @@ from .models import (
     Revenue,
     Route,
     Subscription,
+    SubscriptionInvoice,
     SubscriptionTariff,
     Vehicle,
 )
@@ -53,15 +55,41 @@ from .services.production_service import (
     delete_assignments,
     ensure_comparison_for_route,
 )
-from .services.revenue_service import sync_revenues_for_company_route
+from .services.revenue_service import (
+    comparison_has_productivity,
+    sync_revenue_for_comparison,
+)
 from .services.email_service import (
     create_verification,
     resend_verification,
     send_payment_report_notification,
+    send_route_addition_request_confirmation,
     send_verification_email,
     verify_code,
 )
-from .services.registration_service import build_registration_payload, create_account_from_payload
+from .services.registration_service import (
+    build_registration_payload,
+    create_account_from_payload,
+)
+from .services.billing_service import (
+    at_route_limit,
+    base_routes_registered,
+    build_subscription_period_context,
+    calculate_route_addition_prorata,
+    can_request_additional_routes,
+    compute_amount_due,
+    compute_contract_prorata_preview,
+    create_initial_prorata_invoice,
+    create_route_addition_request,
+    get_current_payable_invoice,
+    get_catalog_route_limit,
+    get_pending_invoices,
+    get_pending_route_request,
+    report_invoice_payment,
+    route_limit_reached_message,
+    sync_subscription_payment_state,
+    trial_days_remaining,
+)
 from .utils import (
     apply_comparison_list_filters,
     apply_expense_list_filters,
@@ -70,6 +98,8 @@ from .utils import (
     apply_route_assignment_filters,
     build_filter_params,
     get_comparison_rates,
+    get_dashboard_breakdowns,
+    get_dashboard_evolution,
     get_dashboard_stats,
     get_list_filter_choices,
     get_month_range,
@@ -95,6 +125,8 @@ def _production_list_url(request):
 
 def _comparison_list_url(request):
     params = request.GET.urlencode()
+    if not params and request.method == 'POST':
+        params = request.POST.get('return_query', '')
     if params:
         return f'{reverse("comparison_list")}?{params}'
     return reverse('comparison_list')
@@ -136,9 +168,11 @@ def _configure_company_route_form(form, org):
     form.fields['delivery_company'].queryset = DeliveryCompany.objects.filter(
         organization=org, is_active=True,
     )
-    form.fields['revenue_account'].queryset = org.financial_accounts.filter(
+    revenue_accounts = org.financial_accounts.filter(
         account_type=FinancialAccount.TYPE_REVENUE,
     )
+    form.fields['revenue_account'].queryset = revenue_accounts
+    form.fields['daily_rate_account'].queryset = revenue_accounts
 
 
 def _month_navigation(year, month):
@@ -175,6 +209,11 @@ class CustomLoginView(LoginView):
 
 
 @never_cache
+def offline_view(request):
+    return render(request, 'stop_check/offline.html')
+
+
+@never_cache
 @require_http_methods(['GET', 'POST'])
 def logout_view(request):
     logout(request)
@@ -194,7 +233,7 @@ def register_view(request):
                 send_verification_email(
                     email=email,
                     code=code,
-                    organization_name=form.cleaned_data['organization_name'],
+                    organization_name=form.cleaned_data['contracting_company'].name,
                     first_name=form.cleaned_data['first_name'],
                 )
             except Exception as exc:
@@ -276,6 +315,8 @@ def dashboard(request):
     org = request.user.profile.organization
     year, month = get_period(request)
     stats = get_dashboard_stats(org, year, month)
+    breakdowns = get_dashboard_breakdowns(org, year, month)
+    chart_data = get_dashboard_evolution(org, year, month)
 
     prev_month = month - 1 if month > 1 else 12
     prev_year = year if month > 1 else year - 1
@@ -284,6 +325,9 @@ def dashboard(request):
 
     context = {
         'stats': stats,
+        'by_company': breakdowns['by_company'],
+        'by_route': breakdowns['by_route'],
+        'chart_data': chart_data,
         'year': year,
         'month': month,
         'month_name': MONTHS_PT[month],
@@ -327,6 +371,25 @@ def comparison_list(request):
 
 
 @organization_required
+def comparison_sync_finance(request, pk):
+    org = request.user.profile.organization
+    if request.method != 'POST':
+        return redirect(_comparison_list_url(request))
+
+    comp = get_object_or_404(DailyComparison, pk=pk, organization=org)
+    if not comparison_has_productivity(comp):
+        messages.warning(
+            request,
+            'Registe produtividade (paragens, PUDO ou recolhas) antes de gerar receitas.',
+        )
+    else:
+        sync_revenue_for_comparison(comp)
+        messages.success(request, 'Receitas geradas ou actualizadas no financeiro.')
+
+    return redirect(_comparison_list_url(request))
+
+
+@organization_required
 def comparison_create(request):
     return redirect('production_list')
 
@@ -338,7 +401,19 @@ def comparison_edit(request, pk):
     if request.method == 'POST':
         form = DailyComparisonForm(request.POST, instance=comp, organization=org)
         if form.is_valid():
-            form.save()
+            old_stops = comp.driver_stops
+            old_pudo = comp.driver_pudo
+            old_pickups = comp.driver_pickups
+            comp = form.save()
+            driver_changed = (
+                comp.driver_stops != old_stops
+                or comp.driver_pudo != old_pudo
+                or comp.driver_pickups != old_pickups
+            )
+            if driver_changed:
+                from .stop_logging import lock_driver_data_by_admin
+
+                lock_driver_data_by_admin(comp)
             messages.success(request, 'Comparação atualizada.')
             return redirect('comparison_list')
     else:
@@ -388,6 +463,23 @@ def comparison_clear(request, pk):
 
 
 @manager_required
+def comparison_lock_driver(request, pk):
+    org = request.user.profile.organization
+    comp = get_object_or_404(DailyComparison, pk=pk, organization=org)
+    if request.method != 'POST':
+        return redirect('comparison_list')
+
+    from .stop_logging import lock_driver_data_by_admin
+
+    lock_driver_data_by_admin(comp)
+    messages.success(
+        request,
+        f'Edição bloqueada na app para {comp.driver.name} ({comp.date.strftime("%d/%m/%Y")}).',
+    )
+    return _comparison_driver_lock_redirect(request, comp)
+
+
+@manager_required
 def comparison_unlock_driver(request, pk):
     org = request.user.profile.organization
     comp = get_object_or_404(DailyComparison, pk=pk, organization=org)
@@ -401,6 +493,12 @@ def comparison_unlock_driver(request, pk):
         request,
         f'Edição libertada para {comp.driver.name} ({comp.date.strftime("%d/%m/%Y")}).',
     )
+    return _comparison_driver_lock_redirect(request, comp)
+
+
+def _comparison_driver_lock_redirect(request, comp):
+    if request.POST.get('return_to') == 'edit':
+        return redirect('comparison_edit', pk=comp.pk)
 
     return_url = request.POST.get('return_query', '')
     url = reverse('comparison_list')
@@ -443,6 +541,8 @@ def comparison_bulk_entry(request):
         if tipo not in (BULK_ENTRY_DRIVER, BULK_ENTRY_COMPANY):
             tipo = BULK_ENTRY_DRIVER
 
+        from .stop_logging import lock_driver_data_by_admin
+
         comparisons = DailyComparison.objects.filter(organization=org, pk__in=ids)
         updated = 0
         for comp in comparisons:
@@ -457,11 +557,12 @@ def comparison_bulk_entry(request):
                 comp.driver_stops = stops
                 comp.driver_pudo = pudo
                 comp.driver_pickups = pickups
+                lock_driver_data_by_admin(comp)
             else:
                 comp.company_stops = stops
                 comp.company_pudo = pudo
                 comp.company_pickups = pickups
-            comp.save()
+                comp.save()
             updated += 1
 
         return_url = request.POST.get('return_query', '')
@@ -506,6 +607,7 @@ def route_list(request):
     org = request.user.profile.organization
     companies = DeliveryCompany.objects.filter(organization=org).prefetch_related(
         'company_routes__revenue_account',
+        'company_routes__daily_rate_account',
     )
     return render(request, 'stop_check/routes/list.html', {'companies': companies})
 
@@ -545,7 +647,7 @@ def production_list(request):
 def delivery_company_create(request):
     org = request.user.profile.organization
     if request.method == 'POST':
-        form = DeliveryCompanyForm(request.POST)
+        form = DeliveryCompanyForm(request.POST, organization=org)
         if form.is_valid():
             company = form.save(commit=False)
             company.organization = org
@@ -553,7 +655,7 @@ def delivery_company_create(request):
             messages.success(request, f'Empresa {company.name} registada.')
             return redirect('route_list')
     else:
-        form = DeliveryCompanyForm()
+        form = DeliveryCompanyForm(organization=org)
     return render(request, 'stop_check/routes/company_form.html', {
         'form': form, 'title': 'Nova Empresa Contratante',
     })
@@ -564,13 +666,13 @@ def delivery_company_edit(request, pk):
     org = request.user.profile.organization
     company = get_object_or_404(DeliveryCompany, pk=pk, organization=org)
     if request.method == 'POST':
-        form = DeliveryCompanyForm(request.POST, instance=company)
+        form = DeliveryCompanyForm(request.POST, instance=company, organization=org)
         if form.is_valid():
             form.save()
             messages.success(request, 'Empresa atualizada.')
             return redirect('route_list')
     else:
-        form = DeliveryCompanyForm(instance=company)
+        form = DeliveryCompanyForm(instance=company, organization=org)
     return render(request, 'stop_check/routes/company_form.html', {
         'form': form, 'title': 'Editar Empresa Contratante',
     })
@@ -609,11 +711,23 @@ def delivery_company_delete(request, pk):
 @manager_required
 def company_route_create(request):
     org = request.user.profile.organization
+    subscription = getattr(org, 'subscription', None)
+    if subscription is None:
+        subscription = Subscription.objects.create(organization=org)
+    subscription.ensure_trial_end_date()
+
+    if at_route_limit(subscription, org):
+        messages.warning(request, route_limit_reached_message(subscription))
+        return redirect('subscription')
+
     company_pk = request.GET.get('empresa')
     if request.method == 'POST':
         form = CompanyRouteForm(request.POST)
         _configure_company_route_form(form, org)
         if form.is_valid():
+            if at_route_limit(subscription, org):
+                messages.warning(request, route_limit_reached_message(subscription))
+                return redirect('subscription')
             route = form.save(commit=False)
             route.organization = org
             route.save()
@@ -625,8 +739,12 @@ def company_route_create(request):
             initial['delivery_company'] = company_pk
         form = CompanyRouteForm(initial=initial)
         _configure_company_route_form(form, org)
+
+    slots = subscription.available_route_slots
     return render(request, 'stop_check/routes/company_route_form.html', {
-        'form': form, 'title': 'Nova Rota da Empresa',
+        'form': form,
+        'title': 'Nova Rota da Empresa',
+        'available_route_slots': slots,
     })
 
 
@@ -642,7 +760,6 @@ def company_route_edit(request, pk):
             for assignment in company_route.assignments.all():
                 assignment.sync_from_company_route()
                 assignment.save()
-            sync_revenues_for_company_route(company_route)
             messages.success(request, 'Rota da empresa atualizada.')
             return redirect('route_list')
     else:
@@ -1127,6 +1244,26 @@ def expense_list(request):
 
 
 @organization_required
+def expense_bulk_delete(request):
+    org = request.user.profile.organization
+    if request.method != 'POST':
+        return redirect(_expense_list_url(request))
+
+    ids = request.POST.getlist('selected')
+    if not ids:
+        messages.warning(request, 'Nenhuma despesa seleccionada.')
+        return redirect(_expense_list_url(request))
+
+    deleted = Expense.objects.filter(
+        organization=org,
+        pk__in=ids,
+    ).count()
+    Expense.objects.filter(organization=org, pk__in=ids).delete()
+    messages.success(request, f'{deleted} despesa(s) eliminada(s).')
+    return redirect(_expense_list_url(request))
+
+
+@organization_required
 def expense_create(request):
     org = request.user.profile.organization
     if request.method == 'POST':
@@ -1307,6 +1444,26 @@ def revenue_list(request):
 
 
 @organization_required
+def revenue_bulk_delete(request):
+    org = request.user.profile.organization
+    if request.method != 'POST':
+        return redirect(_revenue_list_url(request))
+
+    ids = request.POST.getlist('selected')
+    if not ids:
+        messages.warning(request, 'Nenhuma receita seleccionada.')
+        return redirect(_revenue_list_url(request))
+
+    deleted = Revenue.objects.filter(
+        organization=org,
+        pk__in=ids,
+    ).count()
+    Revenue.objects.filter(organization=org, pk__in=ids).delete()
+    messages.success(request, f'{deleted} receita(s) eliminada(s).')
+    return redirect(_revenue_list_url(request))
+
+
+@organization_required
 def revenue_create(request):
     org = request.user.profile.organization
     if request.method == 'POST':
@@ -1362,14 +1519,7 @@ def revenue_delete(request, pk):
     revenue = get_object_or_404(Revenue, pk=pk, organization=org)
     return_url = _revenue_list_url(request)
     if request.method == 'POST':
-        if revenue.comparison_id:
-            comp = revenue.comparison
-            comp.driver_stops = 0
-            comp.driver_pudo = 0
-            comp.driver_pickups = 0
-            comp.save()
-        else:
-            revenue.delete()
+        revenue.delete()
         messages.success(request, 'Receita eliminada.')
         return redirect(return_url)
     return render(request, 'stop_check/finance/revenue_delete.html', {
@@ -1385,6 +1535,7 @@ def finance_view(request):
     year, month = get_period(request)
     stats = get_dashboard_stats(org, year, month)
     start, end = get_month_range(year, month)
+    today = timezone.localdate()
 
     fuel_by_vehicle = {}
     for record in FuelRecord.objects.filter(organization=org, date__gte=start, date__lte=end):
@@ -1401,8 +1552,11 @@ def finance_view(request):
         'year': year,
         'month': month,
         'month_name': MONTHS_PT[month],
+        'month_choices': [(i, MONTHS_PT[i]) for i in range(1, 13)],
+        'year_choices': range(today.year - 2, today.year + 2),
         'fuel_by_vehicle': fuel_by_vehicle,
         'expenses_by_account': expenses_by_account,
+        **_month_navigation(year, month),
     })
 
 
@@ -1412,9 +1566,13 @@ def subscription_view(request):
     subscription = getattr(org, 'subscription', None)
     if subscription is None:
         subscription = Subscription.objects.create(organization=org)
+    subscription.ensure_trial_end_date()
+    sync_subscription_payment_state(subscription)
 
     tariff = SubscriptionTariff.get()
-    contract_form = SubscriptionContractForm()
+    contract_form = SubscriptionContractForm(tariff=tariff)
+    route_request_form = RouteAdditionRequestForm()
+    today = timezone.localdate()
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -1422,59 +1580,197 @@ def subscription_view(request):
         if action == 'contract' and subscription.status in (
             Subscription.STATUS_TRIAL, Subscription.STATUS_CANCELLED,
         ):
-            contract_form = SubscriptionContractForm(request.POST)
+            contract_form = SubscriptionContractForm(request.POST, tariff=tariff)
             if contract_form.is_valid():
-                subscription.contracted_routes = contract_form.cleaned_data['contracted_routes']
+                route_count = contract_form.cleaned_data['contracted_routes']
+                subscription.contracted_routes = route_count
                 subscription.payment_method = contract_form.cleaned_data['payment_method']
                 subscription.status = Subscription.STATUS_PENDING
                 subscription.payment_reported_at = None
                 subscription.save()
+                create_initial_prorata_invoice(subscription, route_count, today)
                 messages.success(
                     request,
-                    'Pedido de contratação enviado. Efectue o pagamento e informe-nos quando concluir.',
+                    'Pedido de contratação enviado. Efectue o pagamento proporcional e informe-nos quando concluir.',
                 )
                 return redirect('subscription')
 
-        elif action == 'report_payment' and subscription.status == Subscription.STATUS_PENDING:
-            if subscription.payment_reported:
+        elif action == 'request_routes' and subscription.status == Subscription.STATUS_ACTIVE:
+            if not can_request_additional_routes(subscription, org, tariff):
+                if not base_routes_registered(org, tariff):
+                    messages.error(
+                        request,
+                        f'Registre as {tariff.included_routes} rotas do plano base no catálogo '
+                        f'antes de contratar rotas adicionais.',
+                    )
+                else:
+                    messages.error(
+                        request,
+                        'Ainda tem vagas no plano actual. Registe as rotas disponíveis primeiro.',
+                    )
+                return redirect('subscription')
+            route_request_form = RouteAdditionRequestForm(request.POST)
+            if route_request_form.is_valid():
+                additional = route_request_form.cleaned_data['additional_routes']
+                try:
+                    route_request = create_route_addition_request(
+                        subscription, additional, today,
+                    )
+                    send_route_addition_request_confirmation(route_request)
+                    messages.success(
+                        request,
+                        f'Pedido de {additional} rota(s) adicional(is) registado. '
+                        f'Enviámos um email com os dados de pagamento. '
+                        f'Após confirmação, poderá registar as rotas no catálogo.',
+                    )
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+            return redirect('subscription')
+
+        elif action == 'report_payment':
+            invoice_id = request.POST.get('invoice_id')
+            invoice = None
+            if invoice_id:
+                invoice = get_object_or_404(
+                    SubscriptionInvoice,
+                    pk=invoice_id,
+                    subscription=subscription,
+                )
+            else:
+                invoice = get_current_payable_invoice(subscription)
+
+            if not invoice or not invoice.is_payable:
+                messages.info(request, 'Não existe cobrança pendente para informar.')
+            elif invoice.payment_reported:
                 messages.info(request, 'O pagamento já foi informado. Aguarde a nossa confirmação.')
             else:
                 try:
-                    send_payment_report_notification(subscription)
-                    subscription.payment_reported_at = timezone.now()
-                    subscription.save(update_fields=['payment_reported_at'])
+                    send_payment_report_notification(subscription, invoice=invoice)
+                    report_invoice_payment(invoice)
                     messages.success(
                         request,
-                        'Obrigado! Informámos a nossa equipa. A assinatura será activada após confirmação do pagamento.',
+                        'Obrigado! Informámos a nossa equipa. O acesso será activado após confirmação do pagamento.',
                     )
                 except ValueError as exc:
                     messages.error(request, str(exc))
             return redirect('subscription')
 
     routes = CompanyRoute.objects.filter(
-        organization=org, is_active=True,
+        organization=org, is_active=True, pending_payment=False,
     ).select_related('delivery_company').order_by('delivery_company__name', 'name')
-    route_count = routes.count()
-    preview_routes = subscription.contracted_routes or max(route_count, 1)
+    route_count = org.route_count
+    preview_routes = subscription.contracted_routes or max(route_count, tariff.included_routes)
     monthly_price = Subscription.calculate_price(preview_routes)
+    pending_invoices = get_pending_invoices(subscription)
+    current_invoice = pending_invoices.first()
+    pending_route_request = get_pending_route_request(subscription)
+    available_slots = subscription.available_route_slots
+    route_addition_preview = None
+    route_addition_preview_details = None
+    can_add_routes = can_request_additional_routes(subscription, org, tariff)
+    if can_add_routes:
+        period_end = Subscription.month_end(today)
+        unit = Subscription.calculate_additional_route_price()
+        route_addition_preview_details = Subscription.calculate_prorata_details(
+            unit, today, period_end,
+        )
+        route_addition_preview = route_addition_preview_details['amount']
+    period_info = build_subscription_period_context(subscription, today)
+    contract_prorata_preview = period_info.get('contract_prorata_preview')
+    catalog_route_limit = get_catalog_route_limit(subscription, tariff)
+    if subscription.status == Subscription.STATUS_TRIAL:
+        contract_prorata_preview = compute_contract_prorata_preview(
+            subscription, preview_routes, today,
+        )
+    amount_due = compute_amount_due(
+        subscription, today, monthly_price, current_invoice, period_info,
+    )
 
     return render(request, 'stop_check/subscription/index.html', {
         'subscription': subscription,
         'routes': routes,
         'route_count': route_count,
+        'available_slots': available_slots,
         'monthly_price': monthly_price,
+        'amount_due': amount_due,
         'tariff': tariff,
         'contract_form': contract_form,
+        'route_request_form': route_request_form,
         'preview_routes': preview_routes,
+        'pending_invoices': pending_invoices,
+        'current_invoice': current_invoice,
+        'pending_route_request': pending_route_request,
+        'route_addition_preview': route_addition_preview,
+        'can_request_additional_routes': can_add_routes,
+        'base_routes_registered': base_routes_registered(org, tariff),
+        'catalog_route_limit': catalog_route_limit,
+        'period_info': period_info,
+        'contract_prorata_preview': contract_prorata_preview,
+        'route_addition_preview_details': route_addition_preview_details,
+        'trial_days_left': trial_days_remaining(subscription),
     })
+
+
+def _dashboard_export_context(org, year, month):
+    stats = get_dashboard_stats(org, year, month)
+    breakdowns = get_dashboard_breakdowns(org, year, month)
+    evolution = get_dashboard_evolution(org, year, month)
+    evolution_rows = [
+        {
+            'label': label,
+            'stops': evolution['operations']['stops'][i],
+            'pudo': evolution['operations']['pudo'][i],
+            'pickups': evolution['operations']['pickups'][i],
+            'operations_total': (
+                evolution['operations']['stops'][i]
+                + evolution['operations']['pudo'][i]
+                + evolution['operations']['pickups'][i]
+            ),
+            'revenue': evolution['finance']['revenue'][i],
+            'expenses': evolution['finance']['expenses'][i],
+            'profit': evolution['finance']['profit'][i],
+        }
+        for i, label in enumerate(evolution['labels'])
+    ]
+    return {
+        'stats': stats,
+        'by_company': breakdowns['by_company'],
+        'by_route': breakdowns['by_route'],
+        'evolution': evolution,
+        'evolution_rows': evolution_rows,
+        'org': org,
+        'year': year,
+        'month': month,
+        'month_name': MONTHS_PT[month],
+    }
+
+
+def _write_breakdown_csv(writer, title, rows):
+    writer.writerow([])
+    writer.writerow([title])
+    writer.writerow([
+        'Nome', 'Dias', 'Stops', 'PUDO', 'Recolhas', 'Média/dia', 'Discrepâncias', 'Dif. €',
+    ])
+    for row in rows:
+        writer.writerow([
+            row['label'],
+            row['days'],
+            row['stops'],
+            row['pudo'],
+            row['pickups'],
+            row['avg_operations'],
+            row['discrepancies'],
+            f'{row["diff_amount"]:.2f}',
+        ])
 
 
 @organization_required
 def export_excel(request):
     org = request.user.profile.organization
     year, month = get_period(request)
-    start, end = get_month_range(year, month)
-    stats = get_dashboard_stats(org, year, month)
+    ctx = _dashboard_export_context(org, year, month)
+    stats = ctx['stats']
+    evolution = ctx['evolution']
 
     response = HttpResponse(content_type='text/csv; charset=utf-8')
     filename = f'stopcheck_{year}_{month:02d}.csv'
@@ -1482,7 +1778,17 @@ def export_excel(request):
     response.write('\ufeff')
 
     writer = csv.writer(response, delimiter=';')
-    writer.writerow(['StopCheck - Relatório', MONTHS_PT[month], year])
+    writer.writerow(['StopCheck - Relatório', ctx['month_name'], year])
+    writer.writerow([])
+    writer.writerow(['Indicadores Gerais'])
+    writer.writerow(['Dias com dados', stats['days_with_data']])
+    writer.writerow(['Média Stops/dia', stats['avg_stops']])
+    writer.writerow(['Média PUDO/dia', stats['avg_pudo']])
+    writer.writerow(['Média Recolhas/dia', stats['avg_pickups']])
+    writer.writerow(['Total Stops', stats['total_stops']])
+    writer.writerow(['Total PUDO', stats['total_pudo']])
+    writer.writerow(['Total Recolhas', stats['total_pickups']])
+    writer.writerow(['Discrepâncias', stats['discrepancy_count']])
     writer.writerow([])
     writer.writerow(['Resumo Financeiro'])
     writer.writerow(['Receita Bruta', f'{stats["gross_revenue"]:.2f}'])
@@ -1490,28 +1796,39 @@ def export_excel(request):
     writer.writerow(['Outras Despesas', f'{stats["other_expenses"]:.2f}'])
     writer.writerow(['Total Despesas', f'{stats["total_expenses"]:.2f}'])
     writer.writerow(['Lucro Líquido', f'{stats["net_profit"]:.2f}'])
+    if stats['cost_per_operation'] is not None:
+        writer.writerow(['Custo por Operação', f'{stats["cost_per_operation"]:.3f}'])
     writer.writerow([])
-    writer.writerow(['Comparações Diárias'])
-    writer.writerow([
-        'Data', 'Motorista',
-        'Paradas (Motorista)', 'PUDO (Motorista)', 'Recolhas (Motorista)',
-        'Paradas (Empresa)', 'PUDO (Empresa)', 'Recolhas (Empresa)',
-        'Dif. Stops', 'Dif. PUDO', 'Dif. Recolhas',
-        '€ Dif. Stops', '€ Dif. PUDO', '€ Dif. Recolhas', '€ Dif. Total',
-    ])
-    for comp in stats['comparisons']:
-        da = comp.get_diff_amounts()
-        diff_eur_total = da['stops'] + da['pudo'] + da['pickups']
+    writer.writerow(['Impacto das Diferenças (€)'])
+    writer.writerow(['Stops', f'{stats["diff_amounts"]["stops"]:.2f}'])
+    writer.writerow(['PUDO', f'{stats["diff_amounts"]["pudo"]:.2f}'])
+    writer.writerow(['Recolhas', f'{stats["diff_amounts"]["pickups"]:.2f}'])
+    writer.writerow(['Total', f'{stats["diff_amounts"]["total"]:.2f}'])
+
+    _write_breakdown_csv(writer, 'Indicadores por Empresa', ctx['by_company'])
+    _write_breakdown_csv(writer, 'Indicadores por Rota', ctx['by_route'])
+
+    writer.writerow([])
+    writer.writerow(['Evolução de Operações (últimos 6 meses)'])
+    writer.writerow(['Mês', 'Stops', 'PUDO', 'Recolhas'])
+    for i, label in enumerate(evolution['labels']):
         writer.writerow([
-            comp.date.strftime('%d/%m/%Y'),
-            comp.driver.name,
-            comp.driver_stops, comp.driver_pudo, comp.driver_pickups,
-            comp.company_stops, comp.company_pudo, comp.company_pickups,
-            comp.diff_stops, comp.diff_pudo, comp.diff_pickups,
-            f'{da["stops"]:.2f}', f'{da["pudo"]:.2f}', f'{da["pickups"]:.2f}', f'{diff_eur_total:.2f}',
+            label,
+            evolution['operations']['stops'][i],
+            evolution['operations']['pudo'][i],
+            evolution['operations']['pickups'][i],
         ])
+
     writer.writerow([])
-    writer.writerow(['Impacto total diferenças (€)', f'{stats["diff_amounts"]["total"]:.2f}'])
+    writer.writerow(['Evolução Financeira (últimos 6 meses)'])
+    writer.writerow(['Mês', 'Receita', 'Despesas', 'Lucro'])
+    for i, label in enumerate(evolution['labels']):
+        writer.writerow([
+            label,
+            f'{evolution["finance"]["revenue"][i]:.2f}',
+            f'{evolution["finance"]["expenses"][i]:.2f}',
+            f'{evolution["finance"]["profit"][i]:.2f}',
+        ])
 
     return response
 
@@ -1520,11 +1837,4 @@ def export_excel(request):
 def export_pdf(request):
     org = request.user.profile.organization
     year, month = get_period(request)
-    stats = get_dashboard_stats(org, year, month)
-    return render(request, 'stop_check/exports/pdf_report.html', {
-        'stats': stats,
-        'org': org,
-        'year': year,
-        'month': month,
-        'month_name': MONTHS_PT[month],
-    })
+    return render(request, 'stop_check/exports/pdf_report.html', _dashboard_export_context(org, year, month))

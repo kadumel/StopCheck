@@ -86,8 +86,8 @@
                     <td class="px-4 py-3">{{ record.date|date:"d/m/Y" }}</td>
                     <td class="px-4 py-3">{{ record.driver.name|default:"—" }}</td>
                     <td class="px-4 py-3 font-medium">{{ record.vehicle.plate }}</td>
-                    <td class="px-4 py-3">{{ record.liters }} L</td>
-                    <td class="px-4 py-3">{{ record.price_per_liter|floatformat:3 }} €</td>
+                    <td class="px-4 py-3">{% if record.liters is not None %}{{ record.liters }} L{% else %}—{% endif %}</td>
+                    <td class="px-4 py-3">{% if record.price_per_liter is not None %}{{ record.price_per_liter|floatformat:3 }} €{% else %}—{% endif %}</td>
                     <td class="px-4 py-3 font-semibold">{{ record.total_cost|floatformat:2 }} €</td>
                     <td class="px-4 py-3 text-slate-500">{{ record.station|default:"—" }}</td>
                     {% if user.profile.is_admin %}

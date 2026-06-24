@@ -38,46 +38,51 @@
 {% if comparison %}
 {% if comparison.driver_data_locked %}
 <div class="bg-slate-700/50 border border-slate-600 rounded-xl p-4 mb-4 text-center">
+    {% if comparison.driver_locked_by_admin %}
+    <p class="text-slate-200 text-sm font-medium">Dados preenchidos pelo gestor</p>
+    <p class="text-slate-400 text-xs mt-1">O administrador registou a produção deste dia. Contacte-o se precisar de alterar.</p>
+    {% else %}
     <p class="text-slate-200 text-sm font-medium">Registo concluído</p>
     <p class="text-slate-400 text-xs mt-1">Os dados estão bloqueados. Contacte o gestor para alterar.</p>
     {% if comparison.driver_submitted_at %}
     <p class="text-slate-500 text-xs mt-2">Concluído às {{ comparison.driver_submitted_at|time:"H:i" }}</p>
     {% endif %}
+    {% endif %}
 </div>
 {% endif %}
 
-<div class="grid grid-cols-3 gap-3 mb-4 {% if comparison.driver_data_locked %}opacity-80{% endif %}" id="count-panel">
-    <div class="bg-slate-800 rounded-2xl p-3 border border-slate-700">
-        <p class="text-xs text-slate-400 text-center mb-2">Paradas</p>
-        <div class="flex items-center gap-1">
-            <button type="button" class="count-btn tap-btn flex-shrink-0 w-9 h-9 rounded-lg bg-slate-700 hover:bg-slate-600 text-lg font-bold leading-none" data-action="decrement" data-type="stop" aria-label="Menos parada" {% if comparison.driver_data_locked %}disabled{% endif %}>−</button>
+<div class="space-y-3 mb-4 {% if comparison.driver_data_locked %}opacity-80{% endif %}" id="count-panel">
+    <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700">
+        <p class="text-sm font-medium text-slate-300 mb-3">Paradas</p>
+        <div class="flex items-center gap-2">
+            <button type="button" class="count-btn tap-btn flex-shrink-0 w-12 h-12 rounded-xl bg-slate-700 hover:bg-slate-600 text-2xl font-bold leading-none" data-action="decrement" data-type="stop" aria-label="Menos parada" {% if comparison.driver_data_locked %}disabled{% endif %}>−</button>
             <input type="number" id="count-stops" min="0" step="1" inputmode="numeric"
                    value="{{ comparison.driver_stops }}"
-                   class="count-input w-full min-w-0 text-center text-xl font-bold text-brand-400 bg-slate-900/60 border border-slate-600 rounded-lg py-1.5 focus:outline-none focus:border-brand-500"
+                   class="count-input w-full min-w-0 text-center text-3xl font-bold text-brand-400 bg-slate-900/60 border border-slate-600 rounded-xl py-3 focus:outline-none focus:border-brand-500"
                    {% if comparison.driver_data_locked %}readonly{% endif %}>
-            <button type="button" class="count-btn tap-btn flex-shrink-0 w-9 h-9 rounded-lg bg-brand-600 hover:bg-brand-500 text-lg font-bold leading-none" data-action="increment" data-type="stop" aria-label="Mais parada" {% if comparison.driver_data_locked %}disabled{% endif %}>+</button>
+            <button type="button" class="count-btn tap-btn flex-shrink-0 w-12 h-12 rounded-xl bg-brand-600 hover:bg-brand-500 text-2xl font-bold leading-none" data-action="increment" data-type="stop" aria-label="Mais parada" {% if comparison.driver_data_locked %}disabled{% endif %}>+</button>
         </div>
     </div>
-    <div class="bg-slate-800 rounded-2xl p-3 border border-slate-700">
-        <p class="text-xs text-slate-400 text-center mb-2">PUDO</p>
-        <div class="flex items-center gap-1">
-            <button type="button" class="count-btn tap-btn flex-shrink-0 w-9 h-9 rounded-lg bg-slate-700 hover:bg-slate-600 text-lg font-bold leading-none" data-action="decrement" data-type="pudo" aria-label="Menos PUDO" {% if comparison.driver_data_locked %}disabled{% endif %}>−</button>
+    <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700">
+        <p class="text-sm font-medium text-slate-300 mb-3">PUDO</p>
+        <div class="flex items-center gap-2">
+            <button type="button" class="count-btn tap-btn flex-shrink-0 w-12 h-12 rounded-xl bg-slate-700 hover:bg-slate-600 text-2xl font-bold leading-none" data-action="decrement" data-type="pudo" aria-label="Menos PUDO" {% if comparison.driver_data_locked %}disabled{% endif %}>−</button>
             <input type="number" id="count-pudo" min="0" step="1" inputmode="numeric"
                    value="{{ comparison.driver_pudo }}"
-                   class="count-input w-full min-w-0 text-center text-xl font-bold text-brand-400 bg-slate-900/60 border border-slate-600 rounded-lg py-1.5 focus:outline-none focus:border-brand-500"
+                   class="count-input w-full min-w-0 text-center text-3xl font-bold text-brand-400 bg-slate-900/60 border border-slate-600 rounded-xl py-3 focus:outline-none focus:border-brand-500"
                    {% if comparison.driver_data_locked %}readonly{% endif %}>
-            <button type="button" class="count-btn tap-btn flex-shrink-0 w-9 h-9 rounded-lg bg-brand-600 hover:bg-brand-500 text-lg font-bold leading-none" data-action="increment" data-type="pudo" aria-label="Mais PUDO" {% if comparison.driver_data_locked %}disabled{% endif %}>+</button>
+            <button type="button" class="count-btn tap-btn flex-shrink-0 w-12 h-12 rounded-xl bg-brand-600 hover:bg-brand-500 text-2xl font-bold leading-none" data-action="increment" data-type="pudo" aria-label="Mais PUDO" {% if comparison.driver_data_locked %}disabled{% endif %}>+</button>
         </div>
     </div>
-    <div class="bg-slate-800 rounded-2xl p-3 border border-slate-700">
-        <p class="text-xs text-slate-400 text-center mb-2">Recolhas</p>
-        <div class="flex items-center gap-1">
-            <button type="button" class="count-btn tap-btn flex-shrink-0 w-9 h-9 rounded-lg bg-slate-700 hover:bg-slate-600 text-lg font-bold leading-none" data-action="decrement" data-type="pickup" aria-label="Menos recolha" {% if comparison.driver_data_locked %}disabled{% endif %}>−</button>
+    <div class="bg-slate-800 rounded-2xl p-4 border border-slate-700">
+        <p class="text-sm font-medium text-slate-300 mb-3">Recolhas</p>
+        <div class="flex items-center gap-2">
+            <button type="button" class="count-btn tap-btn flex-shrink-0 w-12 h-12 rounded-xl bg-slate-700 hover:bg-slate-600 text-2xl font-bold leading-none" data-action="decrement" data-type="pickup" aria-label="Menos recolha" {% if comparison.driver_data_locked %}disabled{% endif %}>−</button>
             <input type="number" id="count-pickups" min="0" step="1" inputmode="numeric"
                    value="{{ comparison.driver_pickups }}"
-                   class="count-input w-full min-w-0 text-center text-xl font-bold text-brand-400 bg-slate-900/60 border border-slate-600 rounded-lg py-1.5 focus:outline-none focus:border-brand-500"
+                   class="count-input w-full min-w-0 text-center text-3xl font-bold text-brand-400 bg-slate-900/60 border border-slate-600 rounded-xl py-3 focus:outline-none focus:border-brand-500"
                    {% if comparison.driver_data_locked %}readonly{% endif %}>
-            <button type="button" class="count-btn tap-btn flex-shrink-0 w-9 h-9 rounded-lg bg-brand-600 hover:bg-brand-500 text-lg font-bold leading-none" data-action="increment" data-type="pickup" aria-label="Mais recolha" {% if comparison.driver_data_locked %}disabled{% endif %}>+</button>
+            <button type="button" class="count-btn tap-btn flex-shrink-0 w-12 h-12 rounded-xl bg-brand-600 hover:bg-brand-500 text-2xl font-bold leading-none" data-action="increment" data-type="pickup" aria-label="Mais recolha" {% if comparison.driver_data_locked %}disabled{% endif %}>+</button>
         </div>
     </div>
 </div>
@@ -217,6 +222,13 @@
     }
 
     [stopsEl, pudoEl, pickupsEl].forEach(input => {
+        input.addEventListener('focus', function () {
+            const el = this;
+            setTimeout(() => el.select(), 0);
+        });
+        input.addEventListener('click', function () {
+            if (document.activeElement === this) this.select();
+        });
         input.addEventListener('input', scheduleSync);
         input.addEventListener('blur', () => {
             if (isLocked) return;

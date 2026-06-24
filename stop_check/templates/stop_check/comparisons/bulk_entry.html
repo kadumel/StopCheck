@@ -13,9 +13,12 @@
 {% endblock %}
 
 {% block content %}
-<p class="text-sm text-slate-500 mb-4">
+    <p class="text-sm text-slate-500 mb-4">
     {{ comparisons|length }} dia(s) seleccionado(s). Use <kbd class="px-1.5 py-0.5 bg-slate-200 rounded text-xs font-mono">Tab</kbd> para avançar entre campos;
     no último campo (<strong>Recolhas</strong>) passa automaticamente ao dia seguinte.
+    {% if is_driver_mode %}
+    <span class="block mt-2 text-amber-700">Ao guardar, os dados do motorista ficam bloqueados para edição na app.</span>
+    {% endif %}
 </p>
 
 <form method="post" id="bulk-entry-form" class="max-w-xl mx-auto">

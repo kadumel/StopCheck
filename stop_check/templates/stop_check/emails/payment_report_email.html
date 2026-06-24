@@ -9,6 +9,9 @@
         <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Telefone</td><td>{{ organization.phone|default:"—" }}</td></tr>
         <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Rotas</td><td>{{ subscription.contracted_routes }}</td></tr>
         <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Valor</td><td><strong>{{ amount|floatformat:2 }} €</strong></td></tr>
+        {% if period_label %}
+        <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Período</td><td>{{ period_label }}</td></tr>
+        {% endif %}
         <tr><td style="padding: 4px 12px 4px 0; color: #64748b;">Pagamento</td><td>{{ method_label }}</td></tr>
     </table>
     <p style="color: #64748b; font-size: 14px;">Confirme no banco e active a assinatura no admin do StopCheck.</p>

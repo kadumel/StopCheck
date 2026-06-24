@@ -16,7 +16,8 @@ def get_or_create_rate_config(organization):
 def get_comparison_rates(comparison):
     """Tarifas da rota associada ao comparativo, ou fallback da organização."""
     if comparison.route_id and comparison.route.company_route_id:
-        return comparison.route.company_route
+        from .models import CompanyRoute
+        return CompanyRoute.objects.get(pk=comparison.route.company_route_id)
     rc = get_or_create_rate_config(comparison.organization)
     return SimpleNamespace(
         price_per_stop=rc.price_per_stop,
@@ -302,4 +303,146 @@ def get_dashboard_stats(organization, year, month):
             'pickups': diff_amount_pickups,
             'total': diff_amount_total,
         },
+    }
+
+
+MONTHS_SHORT_PT = [
+    '', 'Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun',
+    'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez',
+]
+
+
+def _new_breakdown_bucket(label):
+    return {
+        'label': label,
+        'days': set(),
+        'stops': 0,
+        'pudo': 0,
+        'pickups': 0,
+        'discrepancies': 0,
+        'diff_stops': 0,
+        'diff_pudo': 0,
+        'diff_pickups': 0,
+        'diff_amount': Decimal('0'),
+    }
+
+
+def _accumulate_breakdown(bucket, comp):
+    bucket['days'].add(comp.date)
+    bucket['stops'] += comp.driver_stops
+    bucket['pudo'] += comp.driver_pudo
+    bucket['pickups'] += comp.driver_pickups
+    if comp.has_discrepancy:
+        bucket['discrepancies'] += 1
+    bucket['diff_stops'] += comp.diff_stops
+    bucket['diff_pudo'] += comp.diff_pudo
+    bucket['diff_pickups'] += comp.diff_pickups
+    rates = get_comparison_rates(comp)
+    da = comp.calculate_diff_amounts(rates)
+    bucket['diff_amount'] += da['stops'] + da['pudo'] + da['pickups']
+
+
+def _finalize_breakdown(bucket):
+    days = len(bucket['days'])
+    operations = bucket['stops'] + bucket['pudo'] + bucket['pickups']
+    return {
+        'label': bucket['label'],
+        'days': days,
+        'stops': bucket['stops'],
+        'pudo': bucket['pudo'],
+        'pickups': bucket['pickups'],
+        'operations': operations,
+        'avg_operations': round(operations / days, 1) if days else 0,
+        'discrepancies': bucket['discrepancies'],
+        'diff_stops': bucket['diff_stops'],
+        'diff_pudo': bucket['diff_pudo'],
+        'diff_pickups': bucket['diff_pickups'],
+        'diff_total': bucket['diff_stops'] + bucket['diff_pudo'] + bucket['diff_pickups'],
+        'diff_amount': bucket['diff_amount'],
+    }
+
+
+def get_dashboard_breakdowns(organization, year, month):
+    start, end = get_month_range(year, month)
+    comparisons = DailyComparison.objects.filter(
+        organization=organization, date__gte=start, date__lte=end,
+    ).select_related('route__delivery_company', 'route__company_route', 'driver')
+
+    companies = {}
+    routes = {}
+
+    for comp in comparisons:
+        if comp.route_id and comp.route.delivery_company_id:
+            company_key = comp.route.delivery_company_id
+            company_label = comp.route.delivery_company.name
+        else:
+            company_key = 0
+            company_label = 'Sem empresa'
+
+        if company_key not in companies:
+            companies[company_key] = _new_breakdown_bucket(company_label)
+        _accumulate_breakdown(companies[company_key], comp)
+
+        if comp.route_id and comp.route.company_route_id:
+            route_key = f'cr-{comp.route.company_route_id}'
+            route_label = f'{company_label} / {comp.route.name}'
+        elif comp.route_id:
+            route_key = f'r-{company_key}-{comp.route.name}'
+            route_label = f'{company_label} / {comp.route.name}'
+        else:
+            route_key = f'd-{comp.driver_id}'
+            route_label = f'{comp.driver.name} (sem rota)'
+
+        if route_key not in routes:
+            routes[route_key] = _new_breakdown_bucket(route_label)
+        _accumulate_breakdown(routes[route_key], comp)
+
+    by_company = sorted(
+        (_finalize_breakdown(b) for b in companies.values()),
+        key=lambda row: (-row['operations'], row['label']),
+    )
+    by_route = sorted(
+        (_finalize_breakdown(b) for b in routes.values()),
+        key=lambda row: (-row['operations'], row['label']),
+    )
+    return {'by_company': by_company, 'by_route': by_route}
+
+
+def get_dashboard_evolution(organization, year, month, num_months=6):
+    months = []
+    y, m = year, month
+    for _ in range(num_months - 1):
+        m, y = (m - 1, y) if m > 1 else (12, y - 1)
+        months.append((y, m))
+    months.reverse()
+    months.append((year, month))
+
+    labels = []
+    stops = []
+    pudo = []
+    pickups = []
+    revenue = []
+    expenses = []
+    profit = []
+    company_ops = {}
+
+    for y, m in months:
+        stats = get_dashboard_stats(organization, y, m)
+        labels.append(f'{MONTHS_SHORT_PT[m]} {y}')
+        stops.append(stats['total_stops'])
+        pudo.append(stats['total_pudo'])
+        pickups.append(stats['total_pickups'])
+        revenue.append(float(stats['gross_revenue']))
+        expenses.append(float(stats['total_expenses']))
+        profit.append(float(stats['net_profit']))
+
+    current_breakdown = get_dashboard_breakdowns(organization, year, month)
+    for row in current_breakdown['by_company']:
+        company_ops[row['label']] = row['operations']
+
+    return {
+        'labels': labels,
+        'operations': {'stops': stops, 'pudo': pudo, 'pickups': pickups},
+        'finance': {'revenue': revenue, 'expenses': expenses, 'profit': profit},
+        'company_ops': company_ops,
     }

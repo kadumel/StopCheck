@@ -6,11 +6,61 @@
 
 {% block content %}
 <div class="max-w-xl space-y-6">
+
+    {% if subscription.status == 'trial' and period_info.is_trial %}
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-5">
+        <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+                <h3 class="font-semibold text-blue-900">Período experimental</h3>
+                <p class="text-2xl font-bold text-blue-800 mt-1">
+                    {{ period_info.trial_start|date:"d/m/Y" }} — {{ period_info.trial_end|date:"d/m/Y" }}
+                </p>
+                <p class="text-sm text-blue-700 mt-2">
+                    {% if trial_days_left is not None %}
+                    <strong>{{ trial_days_left }}</strong> dia{{ trial_days_left|pluralize:"s" }} restante{{ trial_days_left|pluralize:"s" }}
+                    de {{ period_info.trial_days_total }} dias de avaliação gratuita.
+                    {% else %}
+                    Avaliação gratuita de {{ period_info.trial_days_total }} dias.
+                    {% endif %}
+                </p>
+                <p class="text-sm text-blue-700 mt-2">
+                    Utilização <strong>ilimitada</strong> do sistema, com até
+                    <strong>{{ tariff.included_routes }} rotas</strong> no catálogo.
+                    Para mais rotas, contrate um plano — só após confirmação do pagamento
+                    poderá registar rotas adicionais.
+                </p>
+                {% if period_info.contract_note %}
+                <p class="text-xs text-blue-600/80 mt-3 pt-3 border-t border-blue-200">
+                    {{ period_info.contract_note }}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <h3 class="font-semibold text-slate-800 mb-4">Plano Atual</h3>
         <div class="p-5 rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 text-white mb-4">
-            <p class="text-brand-100 text-sm">Mensalidade</p>
-            <p class="text-4xl font-bold mt-1">{{ monthly_price|floatformat:2 }} €</p>
+            {% if subscription.status == 'trial' %}
+            <p class="text-brand-100 text-sm">Período experimental</p>
+            <p class="text-4xl font-bold mt-1">Gratuito</p>
+            <p class="text-brand-100 text-sm mt-2">
+                {{ route_count }} de {{ catalog_route_limit }} rota{{ catalog_route_limit|pluralize:"s" }}
+                no catálogo (máximo do trial)
+            </p>
+            {% else %}
+            <p class="text-brand-100 text-sm">
+                {% if current_invoice and subscription.status != 'active' %}
+                Valor a pagar agora
+                {% else %}
+                Mensalidade
+                {% endif %}
+            </p>
+            <p class="text-4xl font-bold mt-1">{{ amount_due|floatformat:2 }} €</p>
             {% if subscription.status == 'active' and subscription.contracted_routes %}
             <p class="text-brand-100 text-sm mt-2">{{ subscription.contracted_routes }} rota{{ subscription.contracted_routes|pluralize:"s" }} contratada{{ subscription.contracted_routes|pluralize:"s" }}</p>
             {% elif subscription.status == 'pending' and subscription.contracted_routes %}
@@ -18,16 +68,100 @@
             {% else %}
             <p class="text-brand-100 text-sm mt-2">{{ route_count }} rota{{ route_count|pluralize:"s" }} activa{{ route_count|pluralize:"s" }} no catálogo</p>
             {% endif %}
+            {% endif %}
         </div>
         <dl class="space-y-2 text-sm">
             <div class="flex justify-between py-2 border-b border-slate-100">
-                <dt class="text-slate-500">1ª rota</dt>
+                <dt class="text-slate-500">Plano base (até {{ tariff.included_routes }} rotas)</dt>
                 <dd>{{ tariff.price_first_route|floatformat:2 }} €/mês</dd>
             </div>
             <div class="flex justify-between py-2 border-b border-slate-100">
                 <dt class="text-slate-500">Rotas adicionais</dt>
                 <dd>+{{ tariff.price_additional_route|floatformat:2 }} €/mês cada</dd>
             </div>
+            <div class="flex justify-between py-2 border-b border-slate-100">
+                <dt class="text-slate-500">Pagamento antecipado até</dt>
+                <dd>Dia {{ tariff.payment_due_day }} de cada mês</dd>
+            </div>
+            {% if not period_info.is_trial and period_info.subscription_start %}
+            <div class="flex justify-between py-2 border-b border-slate-100">
+                <dt class="text-slate-500">
+                    {% if period_info.billing_starts_in_future %}Início da assinatura paga{% else %}Início da assinatura{% endif %}
+                </dt>
+                <dd>{{ period_info.subscription_start|date:"d/m/Y" }}</dd>
+            </div>
+            {% endif %}
+            {% if not period_info.is_trial and period_info.subscription_end %}
+            <div class="flex justify-between py-2 border-b border-slate-100">
+                <dt class="text-slate-500">
+                    {% if period_info.billing_starts_in_future %}Fim do primeiro período{% else %}Fim do período em curso{% endif %}
+                </dt>
+                <dd>{{ period_info.subscription_end|date:"d/m/Y" }}</dd>
+            </div>
+            {% endif %}
+            {% if not period_info.is_trial and period_info.period_lines %}
+            <div class="py-3 border-b border-slate-100">
+                <dt class="text-slate-500 text-sm mb-2">
+                    {% if period_info.billing_starts_in_future %}
+                    Período contratado
+                    {% elif period_info.single_period %}
+                    Período de faturação
+                    {% else %}
+                    Períodos de faturação
+                    {% endif %}
+                </dt>
+                <dd>
+                    {% if period_info.single_period and not period_info.period_lines.0.is_prorata %}
+                    <p class="text-slate-800 font-medium">
+                        {{ period_info.period_lines.0.start|date:"d/m/Y" }} — {{ period_info.period_lines.0.end|date:"d/m/Y" }}
+                    </p>
+                    {% else %}
+                    <ul class="space-y-2">
+                        {% for line in period_info.period_lines %}
+                        <li class="text-sm">
+                            <span class="font-medium text-slate-800">{{ line.label }}</span>
+                            <span class="text-slate-600"> · {{ line.start|date:"d/m/Y" }} — {{ line.end|date:"d/m/Y" }}</span>
+                            {% if line.is_prorata %}
+                            <span class="text-xs text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded ml-1">proporcional</span>
+                            {% endif %}
+                            {% if line.status == 'paid' %}
+                            <span class="text-xs text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded ml-1">pago</span>
+                            {% elif line.status == 'pending' %}
+                            <span class="text-xs text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded ml-1">pendente</span>
+                            {% endif %}
+                            {% if line.amount %}
+                            <span class="text-slate-800 font-medium"> · {{ line.amount|floatformat:2 }} €</span>
+                            {% endif %}
+                            {% if line.is_prorata and line.monthly_amount and line.billable_days %}
+                            <p class="text-xs text-slate-500 mt-0.5">
+                                {{ line.monthly_amount|floatformat:2 }} € ÷ {{ line.days_in_month }} dias × {{ line.billable_days }} dias
+                            </p>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                </dd>
+            </div>
+            {% endif %}
+            {% if not period_info.is_trial and period_info.next_billing_period %}
+            <div class="py-3 border-b border-slate-100">
+                <dt class="text-slate-500 text-sm mb-2">Próximo período de faturação</dt>
+                <dd>
+                    <p class="text-slate-800 font-medium">
+                        {{ period_info.next_billing_period.start|date:"d/m/Y" }} — {{ period_info.next_billing_period.end|date:"d/m/Y" }}
+                    </p>
+                    {% if period_info.next_billing_period.amount %}
+                    <p class="text-sm text-slate-600 mt-0.5">{{ period_info.next_billing_period.amount|floatformat:2 }} €</p>
+                    {% endif %}
+                    {% if period_info.next_billing_period.status == 'pending' %}
+                    <p class="text-xs text-amber-700 mt-1">Cobrança pendente</p>
+                    {% elif period_info.next_billing_period.status == 'paid' %}
+                    <p class="text-xs text-emerald-700 mt-1">Pago</p>
+                    {% endif %}
+                </dd>
+            </div>
+            {% endif %}
             <div class="flex justify-between py-2">
                 <dt class="text-slate-500">Estado</dt>
                 <dd>
@@ -35,6 +169,7 @@
                         {% if subscription.status == 'active' %}bg-emerald-100 text-emerald-700
                         {% elif subscription.status == 'pending' %}bg-amber-100 text-amber-700
                         {% elif subscription.status == 'trial' %}bg-blue-100 text-blue-700
+                        {% elif subscription.status == 'suspended' %}bg-red-100 text-red-700
                         {% else %}bg-slate-100 text-slate-600{% endif %}">
                         {{ subscription.get_status_display }}
                     </span>
@@ -42,24 +177,49 @@
             </div>
         </dl>
 
-        {% if subscription.status == 'trial' %}
-        <p class="text-sm text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mt-4">
-            Período experimental <strong>ilimitado</strong>. Quando quiser contratar, indique abaixo quantas rotas necessita.
-        </p>
-        {% elif subscription.status == 'pending' %}
+        {% if subscription.status == 'pending' or subscription.status == 'suspended' %}
         <div class="mt-4 p-4 rounded-lg bg-amber-50 border border-amber-100 text-sm text-amber-900">
             <p class="font-medium mb-1">Pagamento pendente</p>
-            <p>Valor: <strong>{{ monthly_price|floatformat:2 }} €</strong> · {{ subscription.contracted_routes }} rota{{ subscription.contracted_routes|pluralize:"s" }} · {{ subscription.get_payment_method_display }}</p>
-            {% if subscription.payment_reported %}
-            <p class="text-xs mt-2 text-amber-700">Pagamento informado em {{ subscription.payment_reported_at|date:"d/m/Y H:i" }}. Aguarde a nossa confirmação.</p>
+            {% if current_invoice %}
+            <p>Valor: <strong>{{ current_invoice.amount|floatformat:2 }} €</strong> · {{ current_invoice.get_invoice_type_display }}</p>
+            <p class="text-xs mt-1">Período: {{ current_invoice.period_start|date:"d/m/Y" }} — {{ current_invoice.period_end|date:"d/m/Y" }} · Pagar até {{ current_invoice.due_date|date:"d/m/Y" }}</p>
+            {% else %}
+            <p>Valor: <strong>{{ amount_due|floatformat:2 }} €</strong></p>
+            {% endif %}
+            {% if current_invoice and current_invoice.payment_reported %}
+            <p class="text-xs mt-2 text-amber-700">Pagamento informado em {{ current_invoice.payment_reported_at|date:"d/m/Y H:i" }}. Aguarde a nossa confirmação.</p>
             {% endif %}
         </div>
         {% endif %}
     </div>
 
-    {% if subscription.status == 'trial' or subscription.status == 'cancelled' %}
+    {% if pending_invoices %}
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h3 class="font-semibold text-slate-800 mb-4">Cobranças</h3>
+        <ul class="space-y-3 text-sm">
+            {% for invoice in pending_invoices %}
+            <li class="p-3 rounded-lg border border-slate-100 flex justify-between items-start gap-3">
+                <div>
+                    <p class="font-medium text-slate-800">{{ invoice.get_invoice_type_display }}</p>
+                    <p class="text-slate-500">{{ invoice.period_start|date:"d/m/Y" }} — {{ invoice.period_end|date:"d/m/Y" }}</p>
+                    <p class="text-xs text-slate-400">Pagar até {{ invoice.due_date|date:"d/m/Y" }}</p>
+                </div>
+                <p class="font-semibold text-slate-800 shrink-0">{{ invoice.amount|floatformat:2 }} €</p>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    {% if subscription.status == 'trial' or subscription.status == 'cancelled' %}
+    <div id="contratar-plano" class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <h3 class="font-semibold text-slate-800 mb-4">Contratar Plano</h3>
+        <p class="text-xs text-slate-500 mb-4">
+            Na contratação será calculado o valor proporcional até ao fim do mês. A partir do mês seguinte, cobra-se o mês completo (pagamento antecipado até ao dia {{ tariff.payment_due_day }}).
+            {% if subscription.status == 'trial' %}
+            Após confirmação do pagamento, a assinatura fica activa e poderá registar mais rotas (além das {{ tariff.included_routes }} do trial).
+            {% endif %}
+        </p>
         <form method="post" class="space-y-4">
             {% csrf_token %}
             <input type="hidden" name="action" value="contract">
@@ -69,7 +229,9 @@
                 {% if contract_form.contracted_routes.errors %}
                 <p class="text-red-500 text-xs mt-1">{{ contract_form.contracted_routes.errors.0 }}</p>
                 {% endif %}
-                <p class="text-xs text-slate-500 mt-1">Número de rotas que pretende utilizar na plataforma.</p>
+                {% if contract_form.contracted_routes.help_text %}
+                <p class="text-xs text-slate-500 mt-1">{{ contract_form.contracted_routes.help_text }}</p>
+                {% endif %}
             </div>
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-2">{{ contract_form.payment_method.label }}</label>
@@ -78,10 +240,14 @@
                     <label class="flex items-center gap-2 text-sm text-slate-700">{{ radio.tag }} {{ radio.choice_label }}</label>
                     {% endfor %}
                 </div>
-                {% if contract_form.payment_method.errors %}
-                <p class="text-red-500 text-xs mt-1">{{ contract_form.payment_method.errors.0 }}</p>
-                {% endif %}
             </div>
+            <p class="text-sm text-slate-600 bg-slate-50 rounded-lg px-3 py-2">
+                Mensalidade: <strong>{{ monthly_price|floatformat:2 }} €</strong> ({{ preview_routes }} rota{{ preview_routes|pluralize:"s" }})
+                {% if contract_prorata_preview and contract_prorata_preview.is_prorata %}
+                <br>Primeiro pagamento (proporcional): <strong>{{ contract_prorata_preview.amount|floatformat:2 }} €</strong>
+                <span class="text-xs text-slate-500">— {{ contract_prorata_preview.monthly_amount|floatformat:2 }} € ÷ {{ contract_prorata_preview.days_in_month }} dias × {{ contract_prorata_preview.billable_days }} dias</span>
+                {% endif %}
+            </p>
             <button type="submit" class="w-full py-3 bg-brand-600 text-white font-medium rounded-lg hover:bg-brand-700 transition">
                 Submeter pedido de contratação
             </button>
@@ -89,37 +255,36 @@
     </div>
     {% endif %}
 
-    {% if subscription.status == 'pending' %}
+    {% if pending_invoices or subscription.status == 'pending' or subscription.status == 'suspended' %}
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
         <h3 class="font-semibold text-slate-800 mb-4">Dados para Pagamento</h3>
         {% if subscription.payment_method == 'mbway' and tariff.mbway_phone %}
         <div class="mb-4 p-4 rounded-lg bg-slate-50 border border-slate-200">
             <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">MB Way</p>
             <p class="text-xl font-bold text-slate-800">{{ tariff.mbway_phone }}</p>
-            <p class="text-sm text-slate-500 mt-1">Envie {{ monthly_price|floatformat:2 }} € para este número.</p>
+            <p class="text-sm text-slate-500 mt-1">Envie {{ amount_due|floatformat:2 }} € para este número.</p>
         </div>
         {% elif subscription.payment_method == 'transfer' and tariff.iban %}
         <div class="mb-4 p-4 rounded-lg bg-slate-50 border border-slate-200">
             <p class="text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Transferência bancária</p>
             {% if tariff.iban_holder %}<p class="text-sm text-slate-600">{{ tariff.iban_holder }}</p>{% endif %}
             <p class="text-lg font-mono font-semibold text-slate-800 mt-1">{{ tariff.iban }}</p>
-            <p class="text-sm text-slate-500 mt-1">Valor: {{ monthly_price|floatformat:2 }} €</p>
-            <p class="text-xs text-slate-400 mt-2">Indique o nome da empresa na referência da transferência.</p>
+            <p class="text-sm text-slate-500 mt-1">Valor: {{ amount_due|floatformat:2 }} €</p>
         </div>
-        {% else %}
+        {% elif subscription.payment_method %}
         <p class="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg p-3">
             Os dados de pagamento ainda não foram configurados. Contacte o suporte StopCheck.
         </p>
         {% endif %}
 
-        {% if not subscription.payment_reported %}
+        {% if current_invoice and not current_invoice.payment_reported %}
         <form method="post" class="mt-4">
             {% csrf_token %}
             <input type="hidden" name="action" value="report_payment">
+            <input type="hidden" name="invoice_id" value="{{ current_invoice.pk }}">
             <button type="submit" class="w-full py-3 bg-emerald-600 text-white font-medium rounded-lg hover:bg-emerald-700 transition">
                 Informar que o pagamento foi realizado
             </button>
-            <p class="text-xs text-slate-400 text-center mt-2">Enviaremos um aviso à nossa equipa para confirmar no banco.</p>
         </form>
         {% endif %}
     </div>
@@ -127,7 +292,80 @@
 
     {% if subscription.status == 'active' %}
     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-        <h4 class="font-medium text-slate-700 mb-3">Rotas contratadas</h4>
+        <h3 class="font-semibold text-slate-800 mb-2">Rotas do plano</h3>
+        <p class="text-sm text-slate-500 mb-4">
+            {{ route_count }} de {{ subscription.contracted_routes }} rota{{ subscription.contracted_routes|pluralize:"s" }} registada{{ route_count|pluralize:"s" }} no catálogo.
+            {% if available_slots %}
+            Pode adicionar mais <strong>{{ available_slots }}</strong> sem custo adicional.
+            {% endif %}
+        </p>
+
+        {% if pending_route_request %}
+        <div class="p-4 rounded-lg bg-amber-50 border border-amber-100 text-sm text-amber-900 mb-4">
+            <p class="font-medium">Pedido de rotas adicionais pendente</p>
+            <p class="mt-1">
+                +{{ pending_route_request.additional_routes }} rota{{ pending_route_request.additional_routes|pluralize:"s" }}
+                · Valor proporcional: <strong>{{ pending_route_request.invoice.amount|floatformat:2 }} €</strong>
+            </p>
+            <p class="text-xs mt-1 text-amber-800">
+                Período: {{ pending_route_request.invoice.period_start|date:"d/m/Y" }} — {{ pending_route_request.invoice.period_end|date:"d/m/Y" }}
+            </p>
+            <p class="text-xs mt-2 text-amber-700">
+                Após confirmação do pagamento, poderá registar as novas rotas em Empresa / Rota.
+            </p>
+            {% if pending_route_request.invoice.payment_reported %}
+            <p class="text-xs mt-1 text-amber-700">Pagamento informado — aguarde confirmação.</p>
+            {% endif %}
+        </div>
+        {% elif not subscription.has_pending_route_request %}
+        <div class="border-t border-slate-100 pt-4">
+            {% if can_request_additional_routes %}
+            <h4 class="font-medium text-slate-700 mb-2">Solicitar rotas adicionais</h4>
+            <p class="text-xs text-slate-500 mb-3">
+                O pedido gera cobrança proporcional até ao fim do mês. Enviaremos email de confirmação com os dados de pagamento.
+                {% if route_addition_preview_details %}
+                Referência: 1 rota adicional ≈ {{ route_addition_preview|floatformat:2 }} €
+                ({{ route_addition_preview_details.monthly_amount|floatformat:2 }} € ÷ {{ route_addition_preview_details.days_in_month }} dias × {{ route_addition_preview_details.billable_days }} dias).
+                {% endif %}
+            </p>
+            <form method="post" class="space-y-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="request_routes">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">{{ route_request_form.additional_routes.label }}</label>
+                    {{ route_request_form.additional_routes }}
+                    {% if route_request_form.additional_routes.help_text %}
+                    <p class="text-xs text-slate-500 mt-1">{{ route_request_form.additional_routes.help_text }}</p>
+                    {% endif %}
+                </div>
+                <button type="submit" class="w-full py-2.5 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition">
+                    Solicitar rotas adicionais
+                </button>
+            </form>
+            {% elif not base_routes_registered %}
+            <p class="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                Para contratar rotas além do plano base, registe primeiro as
+                <strong>{{ tariff.included_routes }} rotas</strong> incluídas na assinatura
+                ({{ route_count }}/{{ tariff.included_routes }} registadas).
+                {% if available_slots %}
+                <a href="{% url 'company_route_create' %}" class="text-brand-600 hover:underline font-medium">Registar rota</a>
+                {% endif %}
+            </p>
+            {% elif available_slots %}
+            <p class="text-sm text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                Utilize as vagas do plano actual antes de solicitar rotas adicionais
+                ({{ available_slots }} vaga{{ available_slots|pluralize:"s" }} disponível{{ available_slots|pluralize:"is" }}).
+                <a href="{% url 'company_route_create' %}" class="text-brand-600 hover:underline font-medium">Registar rota</a>
+            </p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if subscription.status == 'active' or subscription.status == 'trial' %}
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <h4 class="font-medium text-slate-700 mb-3">Rotas activas no catálogo</h4>
         <ul class="space-y-2">
             {% for route in routes %}
             <li class="flex items-center gap-2 text-sm">
@@ -138,17 +376,32 @@
             <li class="text-slate-400 text-sm">Nenhuma rota activa. <a href="{% url 'company_route_create' %}" class="text-brand-600 hover:underline">Adicionar rota</a></li>
             {% endfor %}
         </ul>
-        {% if subscription.contracted_routes and route_count > subscription.contracted_routes %}
+        {% if subscription.status == 'active' and available_slots %}
+        <p class="text-xs text-slate-500 mt-3">
+            <a href="{% url 'company_route_create' %}" class="text-brand-600 hover:underline">Registar nova rota</a>
+            ({{ available_slots }} vaga{{ available_slots|pluralize:"s" }} disponível{{ available_slots|pluralize:"is" }})
+        </p>
+        {% elif subscription.status == 'trial' and available_slots %}
+        <p class="text-xs text-slate-500 mt-3">
+            <a href="{% url 'company_route_create' %}" class="text-brand-600 hover:underline">Registar nova rota</a>
+            ({{ available_slots }} vaga{{ available_slots|pluralize:"s" }} disponível{{ available_slots|pluralize:"is" }} no trial)
+        </p>
+        {% elif subscription.status == 'trial' and available_slots == 0 %}
         <p class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-4">
-            Tem {{ route_count }} rotas activas mas contratou {{ subscription.contracted_routes }}. Ajuste o catálogo ou renove o plano.
+            Limite do período experimental atingido ({{ catalog_route_limit }} rotas).
+            <a href="#contratar-plano" class="text-brand-600 hover:underline font-medium">Contrate um plano</a>
+            para adicionar mais rotas após confirmação do pagamento.
+        </p>
+        {% elif subscription.status == 'active' and available_slots == 0 and not pending_route_request and base_routes_registered %}
+        <p class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-4">
+            Limite de rotas atingido. Solicite rotas adicionais na secção acima.
+        </p>
+        {% elif subscription.status == 'active' and available_slots == 0 and not pending_route_request and not base_routes_registered %}
+        <p class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-4">
+            Registe as {{ tariff.included_routes }} rotas do plano base antes de contratar rotas adicionais.
         </p>
         {% endif %}
     </div>
     {% endif %}
-
-    <p class="text-sm text-slate-500">
-        Tarifas operacionais (stop, PUDO, diária) em
-        <a href="{% url 'route_list' %}" class="text-brand-600 hover:underline">Empresa / Rota</a>.
-    </p>
 </div>
 {% endblock %}

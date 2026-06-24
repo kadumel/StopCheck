@@ -6,7 +6,7 @@
 <div class="max-w-md mx-auto bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center">
     <h2 class="text-lg font-semibold text-slate-800 mb-2">Eliminar abastecimento?</h2>
     <p class="text-slate-500 mb-1">{{ object.vehicle.plate }} — {{ object.date|date:"d/m/Y" }}</p>
-    <p class="text-slate-600 font-medium mb-6">{{ object.liters }} L — {{ object.total_cost|floatformat:2 }} €</p>
+    <p class="text-slate-600 font-medium mb-6">{% if object.liters is not None %}{{ object.liters }} L — {% endif %}{{ object.total_cost|floatformat:2 }} €</p>
     <form method="post" class="flex gap-3 justify-center">
         {% csrf_token %}
         <button type="submit" class="px-6 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">Eliminar</button>

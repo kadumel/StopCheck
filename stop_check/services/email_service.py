@@ -10,6 +10,8 @@ from django.utils import timezone
 from stop_check.models import EmailVerification, SubscriptionTariff
 from stop_check.services.email_templates import (
     build_payment_report_email,
+    build_route_addition_request_email,
+    build_subscription_invoice_email,
     build_verification_email,
 )
 
@@ -89,7 +91,7 @@ def send_verification_email(email, code, organization_name, first_name):
     return result
 
 
-def send_payment_report_notification(subscription):
+def send_payment_report_notification(subscription, invoice=None):
     tariff = SubscriptionTariff.get()
     notify_email = tariff.payment_notification_email or getattr(
         settings, 'SUBSCRIPTION_NOTIFY_EMAIL', '',
@@ -105,7 +107,17 @@ def send_payment_report_notification(subscription):
             'Configure o email de aviso de pagamento na Tarifa de Assinatura.',
         )
 
-    body = build_payment_report_email(subscription, notify_email)
+    body = build_payment_report_email(subscription, notify_email, invoice=invoice)
+    return _send_webhook_email(body)
+
+
+def send_subscription_invoice_reminder(invoice):
+    body = build_subscription_invoice_email(invoice)
+    return _send_webhook_email(body)
+
+
+def send_route_addition_request_confirmation(route_request):
+    body = build_route_addition_request_email(route_request)
     return _send_webhook_email(body)
 
 

@@ -1,0 +1,65 @@
+    <style>
+        .register-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1.25rem;
+            padding-right: 2.5rem;
+        }
+    </style>
+    <div class="{% if standalone %}min-h-screen flex items-center justify-center bg-gradient-to-br from-surface-900 via-surface-800 to-brand-900 p-4{% else %}max-w-lg mx-auto{% endif %}">
+    <div class="w-full {% if standalone %}max-w-lg{% endif %}">
+        {% if standalone %}
+        <div class="text-center mb-8">
+            <div class="inline-flex w-16 h-16 rounded-2xl bg-brand-500 items-center justify-center text-2xl font-bold text-white mb-4">S</div>
+            <h1 class="text-3xl font-bold text-white">StopCheck</h1>
+            <p class="text-slate-400 mt-2">Crie a conta da sua empresa de entregas</p>
+        </div>
+        {% else %}
+        <div class="mb-6">
+            <h2 class="text-2xl font-semibold text-slate-800">Complete o registo</h2>
+            <p class="text-slate-500 text-sm mt-1">A sua conta ainda não está associada a uma empresa.</p>
+        </div>
+        {% endif %}
+        <div class="bg-white rounded-2xl shadow-xl p-8 {% if not standalone %}border border-slate-200{% endif %}">
+            <h2 class="text-xl font-semibold text-slate-800 mb-6">{% if standalone %}Registar{% else %}Dados da empresa{% endif %}</h2>
+            <form method="post" class="space-y-4">
+                {% csrf_token %}
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {% for field in form %}
+                    <div class="{% if field.name == 'contracting_company' or field.name == 'email' %}sm:col-span-2{% endif %}">
+                        <label class="block text-sm font-medium text-slate-700 mb-1" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {% if field.name == 'contracting_company' %}
+                        <select name="{{ field.html_name }}" id="{{ field.id_for_label }}" class="register-select w-full px-4 py-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition"{% if field.field.required %} required{% endif %}{% if field.field.disabled %} disabled{% endif %}>
+                            {% for value, label in field.field.choices %}
+                            <option value="{{ value }}"{% if field.value|stringformat:"s" == value|stringformat:"s" %} selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <p class="text-xs text-slate-400 mt-0.5">Selecione a empresa contratante na lista</p>
+                        {% else %}
+                        {{ field }}
+                        {% endif %}
+                        {% if field.help_text %}<p class="text-xs text-slate-400 mt-0.5">{{ field.help_text }}</p>{% endif %}
+                        {% if field.errors %}<p class="text-red-500 text-xs mt-1">{{ field.errors.0 }}</p>{% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="submit" class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg transition">
+                    Continuar — verificar email
+                </button>
+            </form>
+            {% if standalone %}
+            <p class="text-center text-sm text-slate-500 mt-6">
+                Já tem conta? <a href="{% url 'login' %}" class="text-brand-600 font-medium hover:underline">Iniciar sessão</a>
+            </p>
+            <p class="text-center text-xs text-slate-400 mt-3">A partir de 20€/mês por veículo</p>
+            {% else %}
+            <form method="post" action="{% url 'logout' %}" class="mt-6 text-center">
+                {% csrf_token %}
+                <button type="submit" class="text-sm text-slate-500 hover:text-slate-700">Terminar sessão e usar outra conta</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>

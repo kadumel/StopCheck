@@ -9,8 +9,9 @@
     <p class="text-slate-600 font-medium mb-1">{{ object.date|date:"d/m/Y" }}</p>
     <p class="text-emerald-700 font-semibold mb-4">{{ object.amount|floatformat:2 }} €</p>
     {% if not is_manual %}
-    <p class="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-6">
-        A produtividade associada (stops, PUDO, recolhas) também será removida.
+    <p class="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 mb-6">
+        A produtividade mantém-se inalterada. Pode voltar a gerar as receitas em
+        <strong>Comparações</strong> com o ícone de financeiro.
     </p>
     {% else %}
     <div class="mb-6"></div>

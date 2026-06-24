@@ -1,35 +1,73 @@
 {% extends 'stop_check/base.html' %}
+{% load static %}
+
+{% block extra_head %}
+<style>
+    .login-panel input[type="text"],
+    .login-panel input[type="password"],
+    .login-panel input[type="email"] {
+        background-color: rgba(0, 0, 0, 0.45) !important;
+        border-color: rgba(255, 255, 255, 0.12) !important;
+        color: #f8fafc !important;
+    }
+    .login-panel input::placeholder {
+        color: rgba(148, 163, 184, 0.7);
+    }
+    .login-panel input:focus {
+        border-color: #34d399 !important;
+        box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.25) !important;
+    }
+</style>
+{% endblock %}
 
 {% block auth_content %}
-<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-surface-900 via-surface-800 to-brand-900 p-4">
-    <div class="w-full max-w-md">
-        <div class="text-center mb-8">
-            <div class="inline-flex w-16 h-16 rounded-2xl bg-brand-500 items-center justify-center text-2xl font-bold text-white mb-4">S</div>
-            <h1 class="text-3xl font-bold text-white">StopCheck</h1>
-            <p class="text-slate-400 mt-2">Controlo de entregas e produtividade</p>
-        </div>
-        <div class="bg-white rounded-2xl shadow-xl p-8">
-            <h2 class="text-xl font-semibold text-slate-800 mb-6">Iniciar sessão</h2>
-            <form method="post" class="space-y-4">
+<div class="min-h-screen flex flex-col bg-[#050a08] lg:relative lg:overflow-hidden lg:bg-black">
+    <!-- Background apenas em desktop -->
+    <img
+        src="{% static 'BackGroundLogin.png' %}"
+        alt=""
+        aria-hidden="true"
+        class="hidden lg:block absolute inset-0 w-full h-full object-cover object-left pointer-events-none select-none"
+    >
+
+    <!-- Banner com branding apenas em mobile -->
+    <div class="lg:hidden relative shrink-0 h-72 sm:h-80 overflow-hidden">
+        <img
+            src="{% static 'BackGroundLogin.png' %}"
+            alt="StopCheck"
+            class="absolute inset-0 w-[120%] max-w-none h-full object-cover object-[24%_38%]"
+        >
+        <div class="absolute inset-0 bg-gradient-to-b from-transparent from-50% via-[#050a08]/40 to-[#050a08]"></div>
+    </div>
+
+    <!-- Formulário: painel sólido em mobile, sobre a zona escura em desktop -->
+    <div class="relative z-10 flex-1 flex items-center justify-center lg:justify-end lg:min-h-screen">
+        <div class="w-full max-w-sm lg:max-w-none lg:w-[38%] xl:w-[35%] px-6 py-8 sm:px-10 sm:py-10 lg:px-12 xl:px-16 login-panel">
+            <h2 class="text-2xl font-semibold text-white mb-1">Iniciar sessão</h2>
+            <p class="text-slate-400 text-sm mb-8">Aceda à sua conta para continuar</p>
+
+            <form method="post" class="space-y-5">
                 {% csrf_token %}
                 {% for field in form %}
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">{{ field.label }}</label>
+                    <label class="block text-sm font-medium text-slate-300 mb-1.5" for="{{ field.id_for_label }}">{{ field.label }}</label>
                     {{ field }}
                     {% if field.errors %}
-                    <p class="text-red-500 text-xs mt-1">{{ field.errors.0 }}</p>
+                    <p class="text-red-400 text-xs mt-1.5">{{ field.errors.0 }}</p>
                     {% endif %}
                 </div>
                 {% endfor %}
                 {% if form.non_field_errors %}
-                <div class="text-red-500 text-sm">{{ form.non_field_errors.0 }}</div>
+                <div class="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{{ form.non_field_errors.0 }}</div>
                 {% endif %}
-                <button type="submit" class="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg transition">
+                <button type="submit" class="w-full py-3 bg-[#10b981] hover:bg-[#059669] text-white font-semibold rounded-lg transition shadow-lg shadow-emerald-500/20">
                     Entrar
                 </button>
             </form>
-            <p class="text-center text-sm text-slate-500 mt-6">
-                Não tem conta? <a href="{% url 'register' %}" class="text-brand-600 font-medium hover:underline">Registar empresa</a>
+
+            <p class="text-center text-sm text-slate-400 mt-8">
+                Não tem conta?
+                <a href="{% url 'register' %}" class="text-[#34d399] font-medium hover:text-[#6ee7b7] transition">Registar empresa</a>
             </p>
         </div>
     </div>

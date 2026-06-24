@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -7,13 +9,16 @@ from stop_check.models import (
     Organization,
     RateConfig,
     Subscription,
+    SubscriptionTariff,
     UserProfile,
 )
 
 
 def build_registration_payload(cleaned_data):
+    company = cleaned_data['contracting_company']
     return {
-        'organization_name': cleaned_data['organization_name'],
+        'contracting_company_id': company.pk,
+        'organization_name': company.name,
         'username': cleaned_data['username'],
         'email': cleaned_data['email'],
         'first_name': cleaned_data['first_name'],
@@ -25,7 +30,7 @@ def build_registration_payload(cleaned_data):
 
 def create_account_from_payload(payload):
     if User.objects.filter(username=payload['username']).exists():
-        raise ValueError('Este utilizador já existe.')
+        raise ValueError('Este NIF já está registado.')
     if User.objects.filter(email=payload['email']).exists():
         raise ValueError('Este email já está registado.')
     if Organization.objects.filter(email=payload['email']).exists():
@@ -42,10 +47,18 @@ def create_account_from_payload(payload):
 
     org = Organization.objects.create(
         name=payload['organization_name'],
+        contracting_company_id=payload.get('contracting_company_id'),
+        nif=payload['username'],
         email=payload['email'],
         phone=payload.get('phone', ''),
     )
-    Subscription.objects.create(organization=org)
+    tariff = SubscriptionTariff.get()
+    start = timezone.localdate()
+    Subscription.objects.create(
+        organization=org,
+        start_date=start,
+        trial_end_date=Subscription.calculate_trial_end_date(start, tariff.trial_days),
+    )
     RateConfig.objects.create(organization=org)
     UserProfile.objects.create(
         user=user,
